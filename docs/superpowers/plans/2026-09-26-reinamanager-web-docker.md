@@ -14,11 +14,11 @@
 
 | 計畫 | 範圍 | 狀態 | 檔案 |
 | --- | --- | --- | --- |
-| A：伺服器與網頁 | 任務 1–9：共用 crate、schema 與 transaction、reina-server、瀏覽器登入、`/game` 子路徑、跨裝置版本、封面、中繼資料代理、雲端掃描 | 已細化（含測試碼與實作碼） | [2026-09-26-plan-a-server-web.md](2026-09-26-plan-a-server-web.md) |
-| B：bridge 與計時 | 任務 10–15：bridge 驗證、ZIP 解析與背景下載、網頁下載／執行按鈕、啟動與程序樹、計時佇列與恢復、遊玩紀錄入庫 | 大綱（本文件），A 完成後細化 | 待建立 |
-| C：部署與驗收 | 任務 16–17：Docker、WSL TeleDrive 設定、整合驗收、i18n、文件 | 大綱（本文件），B 完成後細化 | 待建立 |
+| A：伺服器與網頁 | 任務 1–9：共用 crate、schema 與 transaction、reina-server、瀏覽器登入、`/game` 子路徑、跨裝置版本、封面、中繼資料代理、雲端掃描 | 已實作並驗證 | [2026-09-26-plan-a-server-web.md](2026-09-26-plan-a-server-web.md) |
+| B：bridge 與計時 | 任務 10–15：bridge 驗證、ZIP 解析與背景下載、網頁下載／執行按鈕、啟動與程序樹、計時佇列與恢復、遊玩紀錄入庫 | 已細化（含測試碼、實作邊界與介面） | [2026-09-26-plan-b-bridge-playtime.md](2026-09-26-plan-b-bridge-playtime.md) |
+| C：部署與驗收 | 任務 16–17：Docker、WSL TeleDrive 設定、整合驗收、i18n、文件 | 已細化（含部署步驟與驗收矩陣） | [2026-09-26-plan-c-deployment-validation.md](2026-09-26-plan-c-deployment-validation.md) |
 
-B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A 實際產生的介面（`tx::begin/finish`、`TestApp`、`Config` 等）；先寫會變成猜測。B 的 bridge 端（任務 10、11、13、14）不依賴 A，細化時可以和 A 的實作平行進行。
+A 已完成後，B、C 已依目前實際介面重新查證並細化：伺服器端直接使用現有 `tx::begin/finish`、`TestApp`、`Config`、`authenticatedFetch` 與 `checkServerVersion`；bridge 計畫也依目前 `_bridge_legacy.py`、`LocalFetcher`、`tdapi.py` 的真實結構編寫，不再以未實作介面猜測。
 
 ## 全域約束
 
@@ -53,7 +53,7 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 | 傳輸與登入 | 修改 `src/services/invoke/base.ts`；新增 `src/services/web/auth.ts`、`http.ts`、`version.ts`；增加相鄰測試 |
 | Web 查詢與介面 | 擴充套件現有 query key、`gameCachePatch.ts`、Cards、Detail、AddModal、LaunchModal；新增 `useServerVersion.ts`、`useCoverUrl.ts`、`useBridgeGames.ts` 與必要的 feature hook |
 | 中繼資料 | 保留 `src/metadata/adapters/`、`sourceRegistry.ts`、`data/`；修改 `api/http.ts` 和 `sourceAutoResolve.ts`；增加伺服器代理，不另寫一整套 Rust 源解析器 |
-| bridge | 擴充套件 `fetchlocal.py`、`bridge.py`、`config.py`；新增 `gamestate.py`、`gamelaunch.py`、`playtime.py`，各自管理任務、程序、日誌佇列 |
+| bridge | 擴充 `fetchlocal.py`、`config.py` 與目前實際承載 `RpcApp`/resolver/main 的 `_bridge_legacy.py`；新增 `gamestate.py`、`gamelaunch.py`、`playtime.py`，各自管理任務、程序、日誌佇列 |
 | 部署 | ReinaManager 新增 `Dockerfile`、`.dockerignore`；WSL 修改 compose、`frontend/nginx.conf`、`frontend/Dockerfile`，增加 `frontend/reina-security-headers.conf` |
 
 新檔案只用於獨立職責。後文相鄰 `*.test.ts(x)` 為新增測試，不復用或清空使用者的 `test/` 圖片目錄。
@@ -87,11 +87,11 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 | 9 | `/game/api/scan`、嚴格比對與待確認、DLsite `work_type` 與 Steam 反查、網頁掃描 UI |
 
 
-> 以下任務 10–17 是計畫 B、C 的大綱，還不能直接實作；細化時要補上測試碼、實作碼與 Consumes/Produces。
+> 以下任務 10–17 只保留交付物摘要。直接實作請使用 [計畫 B](2026-09-26-plan-b-bridge-playtime.md) 與 [計畫 C](2026-09-26-plan-c-deployment-validation.md)，其中已補齊真實檔案路徑、Consumes/Produces、測試碼、實作邊界與驗收命令。
 
 ## 任務 10：bridge 路由、預檢與身份驗證
 
-**檔案（bridge 倉庫）：**修改 `bridge.py`、`config.py`、`config.example.ini`；新增 `gamestate.py`、`tests/test_game_rpc.py`，擴充套件現有 `tests/test_bridge_e2e.py` 的 FakeBackend/rig。
+**檔案（bridge 倉庫）：**修改 `_bridge_legacy.py`、`config.py`、`config.example.ini`；新增 `gamestate.py`、`tests/test_game_rpc.py`，擴充套件現有 `tests/test_bridge_e2e.py` 的 FakeBackend/rig。
 
 **介面：**`GameRpc.handle(environ, start_response)` 由 RpcApp 僅在 `/rpc/game/*` 分派；`verify_browser_token(token: str, origin: str) -> int`；配置增加 spec 的 `[reina]` 三項。
 
@@ -104,7 +104,7 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 
 ## 任務 11：共用 ZIP 解析與背景下載狀態機
 
-**檔案（bridge）：**修改 `bridge.py` 的 `_resolve_game`、`fetchlocal.py` 的 `LocalFetcher`、`gamestate.py`；新增 `tests/test_game_fetch.py`，擴充套件 `tests/test_bridge_e2e.py`。
+**檔案（bridge）：**修改 `_bridge_legacy.py` 的 `_resolve_game`、`fetchlocal.py` 的 `LocalFetcher`、`gamestate.py`；新增 `tests/test_game_fetch.py`，擴充套件 `tests/test_bridge_e2e.py`。
 
 **介面：**實際類名沿用 `LocalFetcher`，新增 `destination_for(segments: list[str]) -> Path`；`fetch(windows_path: str, *, skip_existing: bool = False, cancel: threading.Event | None = None) -> Iterator[str]`；`GameState.fetch(path: str)`、`cancel(path: str)`、`states(paths: list[str])`。
 
@@ -132,7 +132,7 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 
 ## 任務 13：Windows 啟動、程序樹監控與即時持久化
 
-**檔案（bridge）：**新增 `gamelaunch.py`、`tests/test_game_launch.py`；修改 `requirements.txt`、`gamestate.py`、`bridge.py`。
+**檔案（bridge）：**新增 `gamelaunch.py`、`tests/test_game_launch.py`；修改 `requirements.txt`、`gamestate.py`、`_bridge_legacy.py`。
 
 **介面：**`GameLauncher.launch(path: str, exe_relpath: str, game_id: int, locale_emulator: bool = False) -> RunningSession`；`RunningSession` 欄位按 spec 加 root；`list_exes(path) -> list[str]`。
 
@@ -145,7 +145,7 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 
 ## 任務 14：計時日誌、崩潰恢復與補送
 
-**檔案（bridge）：**新增 `playtime.py`、`tests/test_playtime.py`；修改 `gamelaunch.py`、`bridge.py` 初始化/關閉流程；複用 `tdapi.py` 的登入能力。
+**檔案（bridge）：**新增 `playtime.py`、`tests/test_playtime.py`；修改 `gamelaunch.py`、`_bridge_legacy.py` 初始化/關閉流程；複用 `tdapi.py` 的登入能力。
 
 **介面：**`RunningSessionStore.save(session)`、`remove(session_id)`、`all()`；`PlaytimeQueue.append(record)`、`ack(id)`、`pending()`；`recover_sessions()`；傳送端使用 bridge 自己取得的 JWT。
 
@@ -223,4 +223,4 @@ B、C 等 A 完成後再細化，是因為它們的伺服器端部分會用到 A
 - 細化計畫 A 時新增的事實（計畫 A 已處理）：migration 備份會碰到桌面版資料庫、`GameInfoEdit.tsx` 在模組層級呼叫 `sep()`、`/images/…` 絕對路徑、捲動位置鍵含 `/game`、`jsdom@30` 需要較新的 Node。
 - 不變的決定：單人使用、共用 TeleDrive 登入、不遷移資料、不做獨立 agent。第三方 OAuth、遠端存檔操作等 spec 沒定義的網頁功能不在範圍內。
 
-**狀態：** 計畫 A 已細化；B、C 為大綱。尚未實作、尚未部署。
+**狀態：** 計畫 A 已實作並驗證；計畫 B、C 已細化。B、C 尚未實作，正式 Docker/WSL 部署與實機驗收尚未進行。
