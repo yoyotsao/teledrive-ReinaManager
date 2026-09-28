@@ -12,6 +12,8 @@ pub struct Config {
     pub port: u16,
     pub data_dir: PathBuf,
     pub static_dir: PathBuf,
+    /// TeleDrive 根目錄下存放遊戲的資料夾名稱，與 bridge 的 game_folder 設定一致。
+    pub game_folder: String,
     /// 测试用：把指定的上游 host 导向本机假服务器。正式环境永远是空的，不从环境变量读取。
     pub upstream_overrides: std::collections::HashMap<String, std::net::SocketAddr>,
 }
@@ -74,6 +76,7 @@ impl Config {
             static_dir: optional("REINA_STATIC_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("/app/static")),
+            game_folder: optional("REINA_GAME_FOLDER").unwrap_or_else(|| "game".to_string()),
             upstream_overrides: std::collections::HashMap::new(),
         })
     }
@@ -95,6 +98,7 @@ impl Config {
             port: 0,
             data_dir: PathBuf::from("/nonexistent/reina-data"),
             static_dir: PathBuf::from("/nonexistent/reina-static"),
+            game_folder: "game".to_string(),
             upstream_overrides: std::collections::HashMap::new(),
         }
     }
@@ -109,6 +113,7 @@ impl fmt::Debug for Config {
             .field("port", &self.port)
             .field("data_dir", &self.data_dir)
             .field("static_dir", &self.static_dir)
+            .field("game_folder", &self.game_folder)
             .field("upstream_overrides", &self.upstream_overrides)
             .finish()
     }
@@ -141,6 +146,7 @@ mod tests {
         assert_eq!(config.port, 8787);
         assert_eq!(config.data_dir, PathBuf::from("/data"));
         assert_eq!(config.static_dir, PathBuf::from("/app/static"));
+        assert_eq!(config.game_folder, "game");
         assert_eq!(
             config.db_path(),
             PathBuf::from("/data").join("reina_manager.db")
@@ -157,12 +163,14 @@ mod tests {
             ("REINA_PORT", "9000"),
             ("REINA_DATA_DIR", "/tmp/reina"),
             ("REINA_STATIC_DIR", "/tmp/static"),
+            ("REINA_GAME_FOLDER", " games "),
         ]))
         .unwrap();
         assert_eq!(config.teledrive_api, "http://backend:8000");
         assert_eq!(config.port, 9000);
         assert_eq!(config.data_dir, PathBuf::from("/tmp/reina"));
         assert_eq!(config.static_dir, PathBuf::from("/tmp/static"));
+        assert_eq!(config.game_folder, "games");
     }
 
     #[test]

@@ -346,6 +346,37 @@ pub struct InsertGameData {
     pub sources: Vec<UpsertGameSourceData>,
 }
 
+impl InsertGameData {
+    /// 雲端掃描建立的佔位條目：還沒有任何來源資料，只有名稱與 TeleDrive 路徑。
+    /// teledrive_path 為 None 時代表手動新增的一般條目（測試用）。
+    pub fn cloud_placeholder(name: &str, teledrive_path: Option<String>) -> Self {
+        let scan_status = teledrive_path.as_ref().map(|_| "pending".to_string());
+        Self {
+            id_type: "custom".to_string(),
+            date: None,
+            localpath: None,
+            executable: None,
+            launch_type: default_launch_type(),
+            steam_launch_id: None,
+            savepath: None,
+            autosave: None,
+            maxbackups: None,
+            clear: None,
+            le_launch: None,
+            magpie: None,
+            teledrive_path,
+            exe_relpath: None,
+            scan_status,
+            scan_candidates: None,
+            custom_data: Some(CustomData {
+                name: Some(name.to_string()),
+                ..Default::default()
+            }),
+            sources: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BatchOperationError {
     pub index: usize,

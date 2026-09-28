@@ -283,6 +283,32 @@ export async function fetchVndbById(
 }
 
 /**
+ * 以 Steam App ID 反查 VNDB 作品 ID。外部連結位於 release 上。
+ */
+export async function fetchVndbIdBySteamAppId(
+	appId: number,
+	context: NetworkRequestContext = {},
+): Promise<string | null> {
+	const response = await http.post<
+		VndbQueryResponse<{ vns: { id: string }[] }>
+	>(
+		`${VNDB_API_BASE}/release`,
+		{
+			filters: ["extlink", "=", ["steam", appId]],
+			fields: "vns.id",
+			results: 5,
+		},
+		buildVndbRateLimitedOptions(context),
+	);
+
+	for (const release of response.data.results ?? []) {
+		const vn = release.vns?.[0];
+		if (vn?.id) return vn.id;
+	}
+	return null;
+}
+
+/**
  * 批量获取 VNDB 游戏信息（支持任意数量 ID）。
  *
  * 通过多次 API 调用获取多个游戏的信息，自动分批处理。

@@ -159,6 +159,7 @@ export interface KunData {
  * DLsite 数据结构
  */
 export interface DlsiteData {
+	work_type?: string;
 	image?: string;
 	name?: string;
 	summary?: string;

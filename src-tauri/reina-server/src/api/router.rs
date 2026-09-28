@@ -3,7 +3,7 @@
 use axum::Router;
 use axum::routing::{any, get, post};
 
-use crate::api::{covers, metadata, rpc, version};
+use crate::api::{covers, metadata, rpc, scan, version};
 use crate::app::AppState;
 use crate::error::ApiError;
 
@@ -13,7 +13,7 @@ pub fn routes() -> Router<AppState> {
         .route("/rpc/{command}", post(rpc::call))
         .merge(covers::handlers::routes())
         .merge(metadata::handlers::routes())
-        // 任务 9：.merge(crate::api::scan::routes())
+        .merge(scan::handlers::routes())
         // 用真实的通配符路由（而不是 `Router::fallback`）承接 `/game/api` 下未匹配的路径：
         // `.fallback()` 会被 axum 存进独立的 fallback_router，一旦嵌套进带有
         // `/game/{*path}` 通配符路由的外层 Router，两者在 matchit 里都是通配符匹配，

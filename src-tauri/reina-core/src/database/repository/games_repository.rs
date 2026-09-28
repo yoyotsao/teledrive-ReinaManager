@@ -49,6 +49,15 @@ pub enum GameType {
 
 pub struct GamesRepository;
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ScanPendingRow {
+    pub id: i32,
+    pub name: String,
+    pub teledrive_path: String,
+    pub scan_status: String,
+    pub scan_candidates: Vec<Value>,
+}
+
 impl GamesRepository {
     /// 缺省游戏状态：想玩 / WISH
     const DEFAULT_PLAY_STATUS: i32 = 1;
@@ -843,6 +852,57 @@ impl GamesRepository {
         active.cover_version = Set(version.clone());
         active.update(conn).await?;
         Ok(version)
+    }
+
+    pub async fn find_ids_by_teledrive_paths(
+        conn: &impl ConnectionTrait,
+        paths: &[String],
+    ) -> Result<HashMap<String, i32>, DbErr> {
+        if paths.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let rows: Vec<(i32, Option<String>)> = games::Entity::find()
+            .select_only()
+            .column(games::Column::Id)
+            .column(games::Column::TeledrivePath)
+            .filter(games::Column::TeledrivePath.is_in(paths.iter().cloned()))
+            .into_tuple()
+            .all(conn)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, path)| path.map(|path| (path, id)))
+            .collect())
+    }
+
+    pub async fn find_scan_pending(
+        conn: &impl ConnectionTrait,
+    ) -> Result<Vec<ScanPendingRow>, DbErr> {
+        let models = games::Entity::find()
+            .filter(games::Column::TeledrivePath.is_not_null())
+            .filter(games::Column::ScanStatus.is_in(["pending", "needs_confirmation"]))
+            .all(conn)
+            .await?;
+
+        Ok(models
+            .into_iter()
+            .map(|model| ScanPendingRow {
+                id: model.id,
+                name: model
+                    .custom_data
+                    .as_ref()
+                    .and_then(|data| data.name.clone())
+                    .unwrap_or_default(),
+                teledrive_path: model.teledrive_path.unwrap_or_default(),
+                scan_status: model.scan_status.unwrap_or_else(|| "pending".into()),
+                scan_candidates: model
+                    .scan_candidates
+                    .and_then(|value| value.as_array().cloned())
+                    .unwrap_or_default(),
+            })
+            .collect())
     }
 
     // ==================== 查询操作 ====================

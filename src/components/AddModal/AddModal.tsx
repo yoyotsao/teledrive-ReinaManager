@@ -43,6 +43,7 @@ import {
 	trimDirnameToSearchName,
 } from "@/services/fs/fileDialog";
 import type { SteamLaunchTarget } from "@/services/invoke/fileService";
+import { isWebRuntime } from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import type {
 	GameMetadataDraft,
@@ -53,7 +54,13 @@ import type {
 import { createAbortableRunner } from "@/utils/async";
 import { getUserErrorMessage } from "@/utils/errors";
 import { formatSteamAppIdWithPath } from "@/utils/steam";
+import {
+	type AddModalTab,
+	availableAddModalTabs,
+	defaultAddModalTab,
+} from "./addModalTabs";
 import BulkImportTab, { type BulkDropBatch } from "./BulkImportTab";
+import CloudScanTab from "./CloudScanTab";
 import GameSelectDialog from "./GameSelectDialog";
 import MixedSourceConfirmDialog from "./MixedSourceConfirmDialog";
 import {
@@ -70,8 +77,6 @@ const REQUEST_TIMEOUT_MS = 100000; // 请求超时时间
 const ERROR_DISPLAY_DURATION_MS = 5000; // 错误提示显示时长
 const DEFAULT_SCAN_DEPTH = 3;
 const DEFAULT_SCAN_MODE: GameScanMode = "executable";
-
-type AddModalTab = "single" | "bulk";
 
 type SingleLaunchSelection =
 	| { kind: "none" }
@@ -121,6 +126,8 @@ async function buildRuntimeOptions(
  */
 const AddModal: React.FC = () => {
 	const { t } = useTranslation();
+	const isWeb = isWebRuntime();
+	const tabs = availableAddModalTabs(isWeb);
 	const navigate = useNavigate();
 	const { data: settings } = useAllSettings();
 	const hasBgmAuth = Boolean(settings?.bgm_auth);
@@ -155,7 +162,9 @@ const AddModal: React.FC = () => {
 	const [bulkApiSource, setBulkApiSource] = useState<SourceType>();
 	const [scanMode, setScanMode] = useState<GameScanMode>(DEFAULT_SCAN_MODE);
 	const [scanMaxDepth, setScanMaxDepth] = useState(DEFAULT_SCAN_DEPTH);
-	const [activeTab, setActiveTab] = useState<AddModalTab>("single");
+	const [activeTab, setActiveTab] = useState<AddModalTab>(
+		defaultAddModalTab(isWeb),
+	);
 	const [bulkDropQueue, setBulkDropQueue] = useState<BulkDropBatch[]>([]);
 	const [launchSelection, setLaunchSelection] = useState<SingleLaunchSelection>(
 		{ kind: "none" },
@@ -321,12 +330,12 @@ const AddModal: React.FC = () => {
 		invalidateSingleDrop();
 		metadataSearchFlow.reset();
 		setFormText("");
-		setActiveTab("single");
+		setActiveTab(defaultAddModalTab(isWeb));
 		setLaunchSelection({ kind: "none" });
 		setBulkDropQueue([]);
 		setAddModalPath("");
 		setError("");
-	}, [invalidateSingleDrop, metadataSearchFlow, setAddModalPath]);
+	}, [invalidateSingleDrop, isWeb, metadataSearchFlow, setAddModalPath]);
 
 	const handleCloseModal = useCallback(() => {
 		if (isBusy) return;
@@ -426,7 +435,7 @@ const AddModal: React.FC = () => {
 				closeAfterTransition={false}
 				aria-labelledby="addgame-dialog-title"
 				fullWidth
-				maxWidth={activeTab === "bulk" ? "lg" : "sm"}
+				maxWidth={activeTab === "single" ? "sm" : "lg"}
 				slotProps={{
 					paper: {
 						sx:
@@ -453,48 +462,56 @@ const AddModal: React.FC = () => {
 					onChange={(_, value: AddModalTab) => setActiveTab(value)}
 					variant="fullWidth"
 				>
-					<Tab
-						value="single"
-						label={t("components.AddModal.singleTab", "单个添加")}
-						disabled={isBusy}
-					/>
-					<Tab
-						value="bulk"
-						label={t("components.AddModal.bulkTab", "批量导入")}
-						disabled={isBusy}
-					/>
+					{tabs.map((tab) => (
+						<Tab
+							key={tab}
+							value={tab}
+							label={
+								tab === "single"
+									? t("components.AddModal.singleTab", "单个添加")
+									: tab === "bulk"
+										? t("components.AddModal.bulkTab", "批量导入")
+										: t("components.AddModal.cloudTab", "雲端掃描")
+							}
+							disabled={isBusy}
+						/>
+					))}
 				</Tabs>
 				<DialogContent
 					sx={{ pt: 2, display: activeTab === "single" ? undefined : "none" }}
 				>
 					{/* single tab 内容：通过 display 控制显隐，避免切换 tab 时卸载 */}
 					<Stack spacing={2} sx={{ pt: 1 }}>
-						{/* 选择本地可执行文件 */}
-						<Button
-							fullWidth
-							variant="contained"
-							onClick={() => void handleSelectLaunchFile()}
-							startIcon={<FileOpenIcon />}
-							disabled={isBusy}
-						>
-							{t("components.AddModal.selectLauncher", "选择启动文件")}
-						</Button>
-						<TextField
-							fullWidth
-							size="small"
-							value={
-								launchSelection.kind === "steam"
-									? `Steam · ${launchSelection.target.name} · ${formatSteamAppIdWithPath(launchSelection.target.steam_launch_id, launchSelection.target.localpath)}`
-									: launchSelection.kind === "local"
-										? launchSelection.path
-										: ""
-							}
-							placeholder={t(
-								"components.AddModal.dragHint",
-								"请选择或拖拽启动文件或文件夹",
-							)}
-							InputProps={{ readOnly: true }}
-						/>
+						{/* 網頁版沒有本機路徑；只保留名稱／ID 中繼資料新增。 */}
+						{!isWeb && (
+							<>
+								<Button
+									fullWidth
+									variant="contained"
+									onClick={() => void handleSelectLaunchFile()}
+									startIcon={<FileOpenIcon />}
+									disabled={isBusy}
+								>
+									{t("components.AddModal.selectLauncher", "选择启动文件")}
+								</Button>
+								<TextField
+									fullWidth
+									size="small"
+									value={
+										launchSelection.kind === "steam"
+											? `Steam · ${launchSelection.target.name} · ${formatSteamAppIdWithPath(launchSelection.target.steam_launch_id, launchSelection.target.localpath)}`
+											: launchSelection.kind === "local"
+												? launchSelection.path
+												: ""
+									}
+									placeholder={t(
+										"components.AddModal.dragHint",
+										"请选择或拖拽启动文件或文件夹",
+									)}
+									InputProps={{ readOnly: true }}
+								/>
+							</>
+						)}
 						{/* 添加策略切换 */}
 						<Stack spacing={2}>
 							<AddGameModeToggleGroup
@@ -558,21 +575,34 @@ const AddModal: React.FC = () => {
 						/>
 					</Stack>
 				</DialogContent>
-				{/* bulk tab：始终挂载，通过 hidden prop 控制显隐，保持状态在 tab 切换时不丢失 */}
-				<BulkImportTab
-					hidden={activeTab !== "bulk"}
-					onClose={handleCloseModal}
-					addMode={addMode}
-					onAddModeChange={setAddMode}
-					bulkApiSource={resolvedBulkApiSource}
-					onBulkApiSourceChange={setBulkApiSource}
-					scanMode={scanMode}
-					onScanModeChange={setScanMode}
-					scanMaxDepth={scanMaxDepth}
-					onScanMaxDepthChange={setScanMaxDepth}
-					dropBatch={bulkDropQueue[0]}
-					onDropBatchHandled={handleBulkDropBatchHandled}
-				/>
+				{/* 桌面版 bulk 始終掛載；網頁版完全不 mount 本機 service。 */}
+				{!isWeb && (
+					<BulkImportTab
+						hidden={activeTab !== "bulk"}
+						onClose={handleCloseModal}
+						addMode={addMode}
+						onAddModeChange={setAddMode}
+						bulkApiSource={resolvedBulkApiSource}
+						onBulkApiSourceChange={setBulkApiSource}
+						scanMode={scanMode}
+						onScanModeChange={setScanMode}
+						scanMaxDepth={scanMaxDepth}
+						onScanMaxDepthChange={setScanMaxDepth}
+						dropBatch={bulkDropQueue[0]}
+						onDropBatchHandled={handleBulkDropBatchHandled}
+					/>
+				)}
+				{isWeb && (
+					<Box
+						sx={{
+							display: activeTab === "cloud" ? undefined : "none",
+							p: 3,
+							overflowY: "auto",
+						}}
+					>
+						<CloudScanTab />
+					</Box>
+				)}
 				{activeTab === "single" && (
 					<DialogActions>
 						{/* 取消按钮 */}

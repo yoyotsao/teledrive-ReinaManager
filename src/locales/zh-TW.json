@@ -37,6 +37,17 @@
 			"bgmNotLoggedInHint": "未登入 Bangumi 帳號，部分隱藏條目（如 R18）可能無法被搜尋到。",
 			"bulkTab": "批量匯入",
 			"cancel": "取消",
+			"cloudScan": {
+				"cancel": "停止",
+				"confirm": "套用",
+				"description": "掃描 TeleDrive 的 game 資料夾，新增尚未建立的遊戲。只有名稱完全相同的結果會自動套用，其他的需要你確認。",
+				"dismiss": "略過",
+				"noCandidate": "找不到可信的候選，請到遊戲詳情頁手動搜尋。",
+				"pendingTitle_other": "待確認（{{count}}）",
+				"retryLater_other": "有 {{count}} 款暫時查不到資料，下次掃描會自動重試。",
+				"start": "開始掃描"
+			},
+			"cloudTab": "雲端掃描",
 			"confirm": "確認",
 			"developer": "開發商",
 			"dragDropHere": "拖拽文件到這裡",

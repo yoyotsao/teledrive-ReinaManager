@@ -5,6 +5,7 @@ pub mod covers;
 pub mod metadata;
 pub mod router;
 pub mod rpc;
+pub mod scan;
 pub mod version;
 
 pub use router::routes;

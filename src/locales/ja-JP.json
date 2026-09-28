@@ -37,6 +37,17 @@
 			"bgmNotLoggedInHint": "Bangumiアカウントにログインしていません。一部の非表示アイテム（R18など）が検索できない場合があります。",
 			"bulkTab": "一括インポート",
 			"cancel": "キャンセル",
+			"cloudScan": {
+				"cancel": "停止",
+				"confirm": "適用",
+				"description": "TeleDrive の game フォルダをスキャンし、未登録のゲームを追加します。タイトルが完全一致した結果のみ自動で適用され、それ以外は確認が必要です。",
+				"dismiss": "スキップ",
+				"noCandidate": "信頼できる候補が見つかりません。ゲーム詳細ページから手動で検索してください。",
+				"pendingTitle_other": "要確認（{{count}}）",
+				"retryLater_other": "{{count}} 件のゲームを一時的に取得できませんでした。次回のスキャンで自動的に再試行します。",
+				"start": "スキャン開始"
+			},
+			"cloudTab": "クラウドスキャン",
 			"confirm": "確認",
 			"developer": "開発者",
 			"dragDropHere": "ファイルをここにドロップ",
