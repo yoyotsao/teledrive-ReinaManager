@@ -15,6 +15,8 @@ import {
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
+import { useStore } from "@/store/appStore";
 import {
 	formatDateLabel,
 	formatPlayTime,
@@ -33,6 +35,17 @@ interface ActivityPanelProps {
 	onFilterChange: (filter: ActivityFilter) => void;
 }
 
+function ActivityCover({
+	activity,
+	replaceNsfwCover,
+}: {
+	activity: ActivityItem;
+	replaceNsfwCover: boolean;
+}) {
+	const src = useGameCoverSrc(activity.game, replaceNsfwCover);
+	return <Avatar variant="rounded" src={src} className="mr-3 h-12 w-12" />;
+}
+
 export function ActivityPanel({
 	filter,
 	groups,
@@ -43,6 +56,7 @@ export function ActivityPanel({
 	onFilterChange,
 }: ActivityPanelProps) {
 	const { i18n, t } = useTranslation();
+	const replaceNsfwCover = useStore((state) => state.nsfwCoverReplace);
 
 	const getDateLabel = (date: string) =>
 		formatDateLabel(date, {
@@ -158,10 +172,9 @@ export function ActivityPanel({
 											to={`/libraries/${activity.gameId}`}
 											className="w-full justify-start rounded-2xl p-1.5 text-left hover:bg-[var(--mui-palette-action-hover)]"
 										>
-											<Avatar
-												variant="rounded"
-												src={activity.imageUrl}
-												className="mr-3 h-12 w-12"
+											<ActivityCover
+												activity={activity}
+												replaceNsfwCover={replaceNsfwCover}
 											/>
 											<Box className="min-w-0">
 												<Typography variant="body2" fontWeight={700} noWrap>

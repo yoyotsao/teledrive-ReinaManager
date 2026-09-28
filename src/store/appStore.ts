@@ -26,6 +26,7 @@ import {
 } from "@/metadata/constants";
 import { type ProxyConfig, settingsService } from "@/services/invoke";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke/types";
+import { isWebRuntime } from "@/services/platform";
 import type { SourceType } from "@/types";
 import type {
 	CollectionEntitySortField,
@@ -513,6 +514,9 @@ export const useStore = create<AppState>()(
 
 			// 初始化方法
 			initialize: async () => {
+				// 网页版：游玩计时由各台电脑的 bridge 负责，元数据代理由伺服器负责
+				if (isWebRuntime()) return;
+
 				// 初始化游戏时间跟踪（数据获取由 React Query 自动触发）
 				await initializeGamePlayTracking().catch((error) => {
 					console.error("初始化游戏时间跟踪失败:", error);

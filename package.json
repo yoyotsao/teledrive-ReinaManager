@@ -6,10 +6,12 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc -b && vite build",
+		"build:web": "tsc -b && vite build --mode web",
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"tauri:dev-cdp": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-cdp.ps1",
 		"typecheck": "tsc -b --noEmit",
+		"test:web": "vitest run",
 		"format": "biome format --write .",
 		"lint": "biome check .",
 		"check": "pnpm run format && pnpm run lint && pnpm run typecheck",
@@ -61,15 +63,20 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.8",
 		"@tauri-apps/cli": "~2.11.4",
+		"@testing-library/dom": "10.4.2",
+		"@testing-library/react": "16.3.3",
 		"@types/node": "^24.13.3",
 		"@types/react": "^18.3.31",
 		"@types/react-dom": "^18.3.7",
 		"@vitejs/plugin-react": "^6.0.5",
+		"fake-indexeddb": "6.2.5",
 		"git-cliff": "^2.13.1",
 		"i18next-cli": "=1.58.3",
+		"jsdom": "29.1.1",
 		"typescript": "^7.0.2",
 		"unocss": "^66.7.5",
-		"vite": "^8.2.1"
+		"vite": "^8.2.1",
+		"vitest": "5.0.1"
 	},
 	"packageManager": "pnpm@11.11.0+sha512.4463f65fd80ed80d69bc1d4bf163ee94f605c7380fc318bb5b2ebe15f8cd12d49c51a4d59e951b401e764d3b6ca751cbf51bc50ed7001a6bcb4935e684c34882"
 }

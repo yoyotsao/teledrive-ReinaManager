@@ -38,6 +38,7 @@ import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame } from "@/hooks/queries/useGames";
 import { handleOpenFolder } from "@/services/fs/fileDialog";
+import { platformCapabilities } from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import { useGamePlayStore } from "@/store/gamePlayStore";
 import type { GameData } from "@/types";
@@ -129,26 +130,28 @@ const RightMenu: React.FC<RightMenuProps> = ({
 
 			<MenuList sx={{ py: 1 }}>
 				{/* 启动游戏 */}
-				<MenuItem
-					disabled={!isThisGameCanRun}
-					onClick={() => {
-						if (selectedGame) {
-							void onLaunchGame(selectedGame);
-						}
-						onClose();
-					}}
-				>
-					<ListItemIcon>
-						{hasLocalPath ? <PlayCircleOutlineIcon /> : <SyncIcon />}
-					</ListItemIcon>
-					<ListItemText
-						primary={
-							hasLocalPath
-								? t("components.RightMenu.startGame", "启动游戏")
-								: t("components.LaunchModal.syncLocalPath", "同步本地")
-						}
-					/>
-				</MenuItem>
+				{platformCapabilities.nativeLaunch && (
+					<MenuItem
+						disabled={!isThisGameCanRun}
+						onClick={() => {
+							if (selectedGame) {
+								void onLaunchGame(selectedGame);
+							}
+							onClose();
+						}}
+					>
+						<ListItemIcon>
+							{hasLocalPath ? <PlayCircleOutlineIcon /> : <SyncIcon />}
+						</ListItemIcon>
+						<ListItemText
+							primary={
+								hasLocalPath
+									? t("components.RightMenu.startGame", "启动游戏")
+									: t("components.LaunchModal.syncLocalPath", "同步本地")
+							}
+						/>
+					</MenuItem>
+				)}
 
 				{/* 进入详情 */}
 				<LinkWithScrollSave
@@ -178,22 +181,24 @@ const RightMenu: React.FC<RightMenuProps> = ({
 				<Divider />
 
 				{/* 打开游戏文件夹 */}
-				<MenuItem
-					disabled={!hasLocalPath}
-					onClick={() => {
-						if (hasLocalPath && selectedGame) {
-							handleOpenFolder(selectedGame);
-						}
-						onClose();
-					}}
-				>
-					<ListItemIcon>
-						<FolderOpenIcon />
-					</ListItemIcon>
-					<ListItemText
-						primary={t("components.RightMenu.openGameFolder", "打开游戏目录")}
-					/>
-				</MenuItem>
+				{platformCapabilities.nativePaths && (
+					<MenuItem
+						disabled={!hasLocalPath}
+						onClick={() => {
+							if (hasLocalPath && selectedGame) {
+								handleOpenFolder(selectedGame);
+							}
+							onClose();
+						}}
+					>
+						<ListItemIcon>
+							<FolderOpenIcon />
+						</ListItemIcon>
+						<ListItemText
+							primary={t("components.RightMenu.openGameFolder", "打开游戏目录")}
+						/>
+					</MenuItem>
+				)}
 
 				{/* 游戏状态切换 - 二级菜单 */}
 				<PlayStatusSubmenu

@@ -22,6 +22,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { useAllSettings, useUpdateSettings } from "@/hooks/queries/useSettings";
 import { useTaskCache } from "@/hooks/queries/useTasks";
 import { buildInsertGameData } from "@/metadata/data/metadata";
@@ -234,7 +235,7 @@ export function InstallRequestHandler() {
 					),
 				() =>
 					listen<InstallCompletedEvent>("game-install-completed", (event) => {
-						queryClient.invalidateQueries({ queryKey: ["games"] });
+						queryClient.invalidateQueries({ queryKey: serverKey("games") });
 						void invalidateTasks();
 						if (event.payload.executable_missing) {
 							snackbar.warning(

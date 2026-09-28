@@ -2,7 +2,7 @@ use crate::database::dto::UpdateSettingsData;
 use crate::entity::prelude::*;
 use crate::entity::user;
 use crate::entity::user::Model;
-use crate::utils::fs::normalize_install_root_path;
+use crate::validation::normalize_install_root_path;
 use sea_orm::*;
 
 /// 用户设置仓库
@@ -23,7 +23,10 @@ impl DbSettingsExt for DatabaseConnection {
 
 impl SettingsRepository {
     /// 确保用户记录存在（ID 固定为 1）
-    async fn ensure_user_exists(db: &DatabaseConnection) -> Result<(), DbErr> {
+    async fn ensure_user_exists<C>(db: &C) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let existing = User::find_by_id(1).one(db).await?;
 
         if existing.is_none() {
@@ -56,10 +59,10 @@ impl SettingsRepository {
     }
 
     /// 批量更新设置
-    pub async fn update_settings(
-        db: &DatabaseConnection,
-        data: UpdateSettingsData,
-    ) -> Result<(), DbErr> {
+    pub async fn update_settings<C>(db: &C, data: UpdateSettingsData) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let data = data.cleaned(); // 清洗空字符串
 
         Self::ensure_user_exists(db).await?;

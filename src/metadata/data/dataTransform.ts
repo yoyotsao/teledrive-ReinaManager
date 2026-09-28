@@ -63,6 +63,7 @@ export function getDisplayGameData(fullData: FullGameData): GameData {
 		custom_data: displayCustomData,
 		created_at: fullData.created_at,
 		updated_at: fullData.updated_at,
+		cover_version: fullData.cover_version,
 		// 初始化展平字段
 		image: undefined,
 		name: undefined,

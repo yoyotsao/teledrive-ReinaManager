@@ -200,10 +200,10 @@ impl CollectionsRepository {
         }
     }
 
-    async fn delete_game_collection_links(
-        txn: &DatabaseTransaction,
-        link_ids: Vec<i32>,
-    ) -> Result<(), DbErr> {
+    async fn delete_game_collection_links<C>(txn: &C, link_ids: Vec<i32>) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         if link_ids.is_empty() {
             return Ok(());
         }
@@ -215,10 +215,13 @@ impl CollectionsRepository {
         Ok(())
     }
 
-    async fn insert_game_collection_links(
-        txn: &DatabaseTransaction,
+    async fn insert_game_collection_links<C>(
+        txn: &C,
         inserts: Vec<GameCollectionInsert>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         if inserts.is_empty() {
             return Ok(());
         }
@@ -239,10 +242,13 @@ impl CollectionsRepository {
         Ok(())
     }
 
-    async fn update_game_collection_sort_orders(
-        txn: &DatabaseTransaction,
+    async fn update_game_collection_sort_orders<C>(
+        txn: &C,
         updates: Vec<(i32, i32)>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         if updates.is_empty() {
             return Ok(());
         }
@@ -267,10 +273,13 @@ impl CollectionsRepository {
         Ok(())
     }
 
-    async fn build_append_inserts(
-        txn: &DatabaseTransaction,
+    async fn build_append_inserts<C>(
+        txn: &C,
         pairs: Vec<GameCollectionPair>,
-    ) -> Result<Vec<GameCollectionInsert>, DbErr> {
+    ) -> Result<Vec<GameCollectionInsert>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         use std::collections::{HashMap, HashSet};
 
         let collection_ids = pairs
@@ -310,10 +319,10 @@ impl CollectionsRepository {
     // ==================== 合集 CRUD 操作 ====================
 
     /// 创建合集
-    pub async fn create(
-        db: &DatabaseConnection,
-        data: InsertCollectionData,
-    ) -> Result<collections::Model, DbErr> {
+    pub async fn create<C>(db: &C, data: InsertCollectionData) -> Result<collections::Model, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let now = chrono::Utc::now().timestamp() as i32;
 
         let collection = collections::ActiveModel {
@@ -353,11 +362,14 @@ impl CollectionsRepository {
     }
 
     /// 更新合集
-    pub async fn update(
-        db: &DatabaseConnection,
+    pub async fn update<C>(
+        db: &C,
         id: i32,
         data: UpdateCollectionData,
-    ) -> Result<collections::Model, DbErr> {
+    ) -> Result<collections::Model, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let existing = Collections::find_by_id(id)
             .one(db)
             .await?
@@ -384,18 +396,24 @@ impl CollectionsRepository {
     }
 
     /// 删除合集（会级联删除子合集和游戏关联）
-    pub async fn delete(db: &DatabaseConnection, id: i32) -> Result<DeleteResult, DbErr> {
+    pub async fn delete<C>(db: &C, id: i32) -> Result<DeleteResult, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         Collections::delete_by_id(id).exec(db).await
     }
 
     // ==================== 游戏-合集关联操作 ====================
 
     /// 从单个合集中批量移除游戏
-    pub async fn remove_games_from_collection(
-        db: &DatabaseConnection,
+    pub async fn remove_games_from_collection<C>(
+        db: &C,
         game_ids: Vec<i32>,
         collection_id: i32,
-    ) -> Result<DeleteResult, DbErr> {
+    ) -> Result<DeleteResult, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let game_ids = Self::unique_ids(game_ids);
         if game_ids.is_empty() {
             return Ok(DeleteResult::empty());
@@ -436,23 +454,25 @@ impl CollectionsRepository {
         Ok(links.into_iter().map(|link| link.collection_id).collect())
     }
 
-    /// 批量将多个游戏添加到多个合集，已存在的关联会跳过
-    pub async fn add_games_to_collections(
-        db: &DatabaseConnection,
+    /// 批量将多个游戏添加到多个合集，已存在的关联会跳过（外部 transaction 版本）
+    pub async fn add_games_to_collections_in_connection<C>(
+        db: &C,
         game_ids: Vec<i32>,
         collection_ids: Vec<i32>,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let game_ids = Self::unique_ids(game_ids);
         let collection_ids = Self::unique_ids(collection_ids);
         if game_ids.is_empty() || collection_ids.is_empty() {
             return Ok(());
         }
 
-        let txn = db.begin().await?;
         let current_links = GameCollectionLink::find()
             .filter(game_collection_link::Column::GameId.is_in(game_ids.clone()))
             .filter(game_collection_link::Column::CollectionId.is_in(collection_ids.clone()))
-            .all(&txn)
+            .all(db)
             .await?;
         let target_pairs = collection_ids
             .iter()
@@ -464,10 +484,46 @@ impl CollectionsRepository {
             })
             .collect::<Vec<_>>();
         let diff = Self::diff_game_collection_pairs(&current_links, &target_pairs);
-        let inserts = Self::build_append_inserts(&txn, diff.to_insert).await?;
-        Self::insert_game_collection_links(&txn, inserts).await?;
+        let inserts = Self::build_append_inserts(db, diff.to_insert).await?;
+        Self::insert_game_collection_links(db, inserts).await?;
+        Ok(())
+    }
 
-        txn.commit().await?;
+    /// 批量将多个游戏添加到多个合集，已存在的关联会跳过
+    pub async fn add_games_to_collections(
+        db: &DatabaseConnection,
+        game_ids: Vec<i32>,
+        collection_ids: Vec<i32>,
+    ) -> Result<(), DbErr> {
+        let txn = db.begin().await?;
+        Self::add_games_to_collections_in_connection(&txn, game_ids, collection_ids).await?;
+        txn.commit().await
+    }
+
+    /// 设置单个游戏所在的合集列表（外部 transaction 版本）
+    pub async fn set_game_collections_in_connection<C>(
+        db: &C,
+        game_id: i32,
+        collection_ids: Vec<i32>,
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        let current_links = GameCollectionLink::find()
+            .filter(game_collection_link::Column::GameId.eq(game_id))
+            .all(db)
+            .await?;
+        let target_pairs = Self::unique_ids(collection_ids)
+            .into_iter()
+            .map(|collection_id| GameCollectionPair {
+                game_id,
+                collection_id,
+            })
+            .collect::<Vec<_>>();
+        let diff = Self::diff_game_collection_pairs(&current_links, &target_pairs);
+        Self::delete_game_collection_links(db, diff.to_delete_link_ids).await?;
+        let inserts = Self::build_append_inserts(db, diff.to_insert).await?;
+        Self::insert_game_collection_links(db, inserts).await?;
         Ok(())
     }
 
@@ -478,24 +534,28 @@ impl CollectionsRepository {
         collection_ids: Vec<i32>,
     ) -> Result<(), DbErr> {
         let txn = db.begin().await?;
+        Self::set_game_collections_in_connection(&txn, game_id, collection_ids).await?;
+        txn.commit().await
+    }
 
+    /// 批量更新分类中的游戏列表（外部 transaction 版本）
+    pub async fn update_category_games_in_connection<C>(
+        db: &C,
+        new_game_ids: Vec<i32>,
+        collection_id: i32,
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let current_links = GameCollectionLink::find()
-            .filter(game_collection_link::Column::GameId.eq(game_id))
-            .all(&txn)
+            .filter(game_collection_link::Column::CollectionId.eq(collection_id))
+            .all(db)
             .await?;
-        let target_pairs = Self::unique_ids(collection_ids)
-            .into_iter()
-            .map(|collection_id| GameCollectionPair {
-                game_id,
-                collection_id,
-            })
-            .collect::<Vec<_>>();
-        let diff = Self::diff_game_collection_pairs(&current_links, &target_pairs);
-        Self::delete_game_collection_links(&txn, diff.to_delete_link_ids).await?;
-        let inserts = Self::build_append_inserts(&txn, diff.to_insert).await?;
-        Self::insert_game_collection_links(&txn, inserts).await?;
+        let diff = Self::build_category_games_diff(&current_links, new_game_ids, collection_id);
 
-        txn.commit().await?;
+        Self::delete_game_collection_links(db, diff.to_delete_link_ids).await?;
+        Self::insert_game_collection_links(db, diff.to_insert).await?;
+        Self::update_game_collection_sort_orders(db, diff.to_update_sort_orders).await?;
         Ok(())
     }
 
@@ -517,18 +577,8 @@ impl CollectionsRepository {
         collection_id: i32,
     ) -> Result<(), DbErr> {
         let txn = db.begin().await?;
-        let current_links = GameCollectionLink::find()
-            .filter(game_collection_link::Column::CollectionId.eq(collection_id))
-            .all(&txn)
-            .await?;
-        let diff = Self::build_category_games_diff(&current_links, new_game_ids, collection_id);
-
-        Self::delete_game_collection_links(&txn, diff.to_delete_link_ids).await?;
-        Self::insert_game_collection_links(&txn, diff.to_insert).await?;
-        Self::update_game_collection_sort_orders(&txn, diff.to_update_sort_orders).await?;
-        txn.commit().await?;
-
-        Ok(())
+        Self::update_category_games_in_connection(&txn, new_game_ids, collection_id).await?;
+        txn.commit().await
     }
 
     // ==================== 前端友好的组合 API ====================

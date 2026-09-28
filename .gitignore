@@ -1,6 +1,7 @@
 # Folder to ignore
 node_modules
 dist
+dist-web
 target
 docs-local
 others

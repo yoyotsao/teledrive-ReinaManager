@@ -380,6 +380,15 @@
 			"exit": "終了",
 			"open": "メインウィンドウを開く"
 		},
+		"WebAuthGate": {
+			"description": "ReinaManager のウェブ版は TeleDrive のログインを使用します。TeleDrive にログインしてから、このページに戻ってください。",
+			"openTeleDrive": "TeleDrive にログイン",
+			"retry": "ログインしました。再確認する",
+			"title": "先に TeleDrive にログインしてください"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "ウェブ版では OAuth ログインを利用できません。デスクトップ版でログインしてから同期してください。"
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "再度確認しない",
@@ -611,6 +620,7 @@
 				"closeSourceCoverDialog": "閉じる",
 				"confirm": "確定",
 				"coverAndBasicInfo": "カバーと基本情報",
+				"coverTooLarge": "カバー画像は 10 MB 以下にしてください",
 				"customGameName": "カスタムゲーム名",
 				"descriptionAndTags": "説明とタグ",
 				"developer": "開発者",

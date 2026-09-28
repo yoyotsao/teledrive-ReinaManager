@@ -5,6 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { gameKeys } from "@/hooks/queries/useGames";
 import {
 	getAllGameLastPlayed,
@@ -17,7 +18,7 @@ import type { GameStatistics } from "@/types";
 import { getLocalDateString } from "@/utils/dateTime";
 
 export const statsKeys = {
-	all: ["stats"] as const,
+	all: serverKey("stats"),
 	allGameStatistics: () => [...statsKeys.all, "allGameStatistics"] as const,
 	gameStats: (gameId: number) => [...statsKeys.all, "game", gameId] as const,
 	sessions: (gameId: number, limit: number) =>

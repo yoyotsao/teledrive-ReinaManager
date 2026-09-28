@@ -393,6 +393,15 @@
 			"exit": "Exit",
 			"open": "Open Main Window"
 		},
+		"WebAuthGate": {
+			"description": "The ReinaManager web version uses your TeleDrive login. Sign in to TeleDrive, then come back to this page.",
+			"openTeleDrive": "Sign in to TeleDrive",
+			"retry": "I've signed in, check again",
+			"title": "Please sign in to TeleDrive first"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "OAuth sign-in is not available on the web. Sign in with the desktop app, then sync."
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "Don't remind again",
@@ -627,6 +636,7 @@
 				"closeSourceCoverDialog": "Close",
 				"confirm": "Confirm",
 				"coverAndBasicInfo": "Cover and Basic Info",
+				"coverTooLarge": "Cover must be 10 MB or smaller",
 				"customGameName": "Custom Game Name",
 				"descriptionAndTags": "Description and Tags",
 				"developer": "Developer",

@@ -3,7 +3,7 @@ use crate::utils::command_ext::CommandGuiExt;
 
 use serde::Serialize;
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::command;
 
@@ -31,51 +31,9 @@ pub enum DroppedLocalPathKind {
 
 const LOCAL_EXECUTABLE_EXTENSIONS: &[&str] = &["exe", "bat", "cmd"];
 
-/// 清洗并校验游戏安装根目录，确保任务和默认设置使用相同规则。
-pub fn normalize_install_root_path(value: &str) -> Result<PathBuf, String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err("请先选择游戏安装目录".to_string());
-    }
-    let path: PathBuf = PathBuf::from(trimmed).components().collect();
-    if !path.is_absolute() {
-        return Err("游戏安装目录必须是绝对路径".to_string());
-    }
-    Ok(path)
-}
-
-/// 校验跨协议、压缩包和数据库共用的安全相对文件路径。
-pub fn validate_safe_relative_path(value: &str) -> Result<(), String> {
-    if value.is_empty() || value.contains('\0') || value.starts_with(['/', '\\']) {
-        return Err("路径必须是安全相对路径".to_string());
-    }
-    let normalized = value.replace('\\', "/");
-    if normalized
-        .split('/')
-        .any(|part| part.is_empty() || matches!(part, "." | "..") || part.contains(':'))
-    {
-        return Err("路径包含不安全组件".to_string());
-    }
-    if Path::new(&normalized)
-        .components()
-        .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err("路径包含不安全组件".to_string());
-    }
-    Ok(())
-}
-
-/// 校验游戏启动程序字段，只允许保存单个文件名。
-pub fn validate_executable_name(value: &str) -> Result<(), String> {
-    let mut components = Path::new(value).components();
-    let is_single_file_name = matches!(components.next(), Some(Component::Normal(_)))
-        && components.next().is_none()
-        && !value.contains(['/', '\\']);
-    if !is_single_file_name {
-        return Err("executable 必须是单个文件名，不能包含路径".to_string());
-    }
-    Ok(())
-}
+pub use reina_core::validation::{
+    normalize_install_root_path, validate_executable_name, validate_safe_relative_path,
+};
 
 fn is_supported_local_executable(path: &Path) -> bool {
     path.extension().is_some_and(|ext| {
@@ -481,29 +439,4 @@ pub async fn delete_file(file_path: String) -> Result<(), String> {
 
     fs::remove_file(path).map_err(|e| format!("无法删除文件: {}", e))?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::normalize_install_root_path;
-    use std::path::PathBuf;
-
-    #[test]
-    fn install_root_path_must_be_absolute() {
-        assert!(normalize_install_root_path("games").is_err());
-        assert!(normalize_install_root_path("   ").is_err());
-    }
-
-    #[test]
-    fn install_root_path_is_trimmed_and_normalized() {
-        #[cfg(windows)]
-        let root = r"C:\Games";
-        #[cfg(not(windows))]
-        let root = "/games";
-
-        assert_eq!(
-            normalize_install_root_path(&format!("  {root}/.  ")),
-            Ok(PathBuf::from(root))
-        );
-    }
 }

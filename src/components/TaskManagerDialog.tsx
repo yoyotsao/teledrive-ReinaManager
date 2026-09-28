@@ -24,7 +24,6 @@ import {
 	Tooltip,
 	Typography,
 } from "@mui/material";
-import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -40,6 +39,7 @@ import {
 	type Task,
 	type TaskStatus,
 } from "@/services/invoke";
+import { openExternal as openUrl } from "@/services/platform";
 import { formatDateLabel, getLocalDateString } from "@/utils/dateTime";
 import { getUserErrorMessage } from "@/utils/errors";
 import { formatFileSize } from "@/utils/fileSize";

@@ -1,5 +1,4 @@
 import type { GameData } from "@/types";
-import { getGameCover } from "@/utils/game";
 
 interface CoverPreviewParams {
 	selectedGame: GameData;
@@ -8,18 +7,20 @@ interface CoverPreviewParams {
 	previewUrl: string | null;
 	sourceCoverImage?: string;
 	sourceCoverChanged: boolean;
+	/** 没有更优先的预览来源时使用：网页版由 useGameCoverSrc 算出、桌面版由呼叫端的 getGameCover 算出 */
+	fallbackCoverUrl: string;
 }
 
 export function getCoverPreviewUrl({
-	selectedGame,
 	shouldDeleteImage,
 	tempCoverUrl,
 	previewUrl,
 	sourceCoverImage,
 	sourceCoverChanged,
+	fallbackCoverUrl,
 }: CoverPreviewParams): string {
 	if (shouldDeleteImage) {
-		return sourceCoverImage ?? "/images/default.png";
+		return sourceCoverImage ?? fallbackCoverUrl;
 	}
 	if (tempCoverUrl) {
 		return tempCoverUrl;
@@ -31,10 +32,7 @@ export function getCoverPreviewUrl({
 		return sourceCoverImage;
 	}
 
-	return getGameCover({
-		...selectedGame,
-		image: sourceCoverImage ?? selectedGame.image,
-	});
+	return fallbackCoverUrl;
 }
 
 export function isInvalidExecutableName(executable: string): boolean {

@@ -1,25 +1,40 @@
 import "./App.css";
 import "@/providers/i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { SnackbarProvider } from "notistack";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import { InstallRequestHandler } from "@/components/InstallRequestHandler";
+import { WebAuthGate } from "@/components/WebAuthGate";
 import WindowsHandler from "@/components/Windows";
+import { useWebAuthRequired } from "@/hooks/common/useWebAuthRequired";
+import { useServerVersionSync } from "@/hooks/queries/useServerVersion";
 import { appRoutes } from "@/providers/router"; // 引入新的统一配置
 import { SnackbarUtilsConfigurator } from "@/providers/snackBar";
 import { ToolpadReactRouterAppProvider } from "@/providers/ToolpadReactRouterAppProvider";
 import { initBgmAuthRefresh } from "@/services/oauth/bgmAuthSession";
 import { initHikarinagiAuthRefresh } from "@/services/oauth/hikarinagiAuthSession";
+import { isWebRuntime, platformCapabilities } from "@/services/platform";
+
+// 只负责挂上版本轮询，不渲染任何内容
+const ServerVersionSync: React.FC = () => {
+	useServerVersionSync();
+	return null;
+};
 
 const App: React.FC = () => {
 	const { t } = useTranslation();
+	const webAuthRequired = useWebAuthRequired();
 
 	useEffect(() => {
 		void initBgmAuthRefresh();
 		void initHikarinagiAuthRefresh();
 	}, []);
+
+	// 网页版执行中 token 失效且刷新失败：整页改为登录提示
+	if (isWebRuntime() && webAuthRequired) {
+		return <WebAuthGate onRetry={() => window.location.reload()} />;
+	}
 
 	// 从路由配置动态生成导航菜单
 	const Navigation = appRoutes
@@ -38,9 +53,10 @@ const App: React.FC = () => {
 			anchorOrigin={{ vertical: "top", horizontal: "center" }}
 		>
 			<SnackbarUtilsConfigurator />
+			{isWebRuntime() && <ServerVersionSync />}
 			<ToolpadReactRouterAppProvider navigation={Navigation}>
-				{isTauri() && <WindowsHandler />}
-				{isTauri() && <InstallRequestHandler />}
+				{platformCapabilities.desktopShell && <WindowsHandler />}
+				{platformCapabilities.desktopShell && <InstallRequestHandler />}
 				<Outlet />
 			</ToolpadReactRouterAppProvider>
 		</SnackbarProvider>

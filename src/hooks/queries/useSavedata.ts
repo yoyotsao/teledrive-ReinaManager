@@ -16,6 +16,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { join } from "pathe";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { getSavedataBackupPath } from "@/services/fs/pathCache";
 import { createGameSavedataBackup } from "@/services/fs/savedataBackup";
 import { savedataService } from "@/services/invoke";
@@ -26,9 +27,11 @@ import type { SavedataRecord } from "@/types";
 // ============================================================================
 
 export const saveDataKeys = {
-	all: ["saveData"] as const,
-	backups: (gameId: number) => ["saveData", "backups", gameId] as const,
-	backupCount: (gameId: number) => ["saveData", "backupCount", gameId] as const,
+	all: serverKey("saveData"),
+	backups: (gameId: number) =>
+		[...saveDataKeys.all, "backups", gameId] as const,
+	backupCount: (gameId: number) =>
+		[...saveDataKeys.all, "backupCount", gameId] as const,
 };
 
 interface CreateBackupParams {

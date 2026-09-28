@@ -15,6 +15,9 @@ import {
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { GameCoverImg } from "@/components/GameCover";
+import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
+import { isWebRuntime } from "@/services/platform";
 import type { GameData, TimeTrackingMode } from "@/types";
 import { formatPlayTime, formatRelativeTime } from "@/utils/dateTime";
 import { getGameDisplayName } from "@/utils/game";
@@ -81,7 +84,7 @@ export function FocusGamePanel({
 }: FocusGamePanelProps) {
 	const { t } = useTranslation();
 	const hasPlayed = lastPlayed !== undefined;
-	const coverUrl = game ? getVisibleCover(game, replaceNsfwCover) : "";
+	const coverUrl = useGameCoverSrc(game ?? undefined, replaceNsfwCover);
 
 	const cachedIsPortrait = getCoverIsPortrait(coverUrl);
 	const [coverLayout, setCoverLayout] = useState<{
@@ -95,6 +98,7 @@ export function FocusGamePanel({
 
 	// 预加载 recentGames 的封面宽高比，消除点击最近游戏列表时的布局闪烁
 	useEffect(() => {
+		if (isWebRuntime()) return;
 		for (const recentGame of recentGames) {
 			const url = getVisibleCover(recentGame, replaceNsfwCover);
 			getCoverIsPortrait(url);
@@ -261,9 +265,9 @@ export function FocusGamePanel({
 															: "rgba(255,255,255,.22)",
 												}}
 											>
-												<Box
-													component="img"
-													src={getVisibleCover(recentGame, replaceNsfwCover)}
+												<GameCoverImg
+													game={recentGame}
+													replaceNsfwCover={replaceNsfwCover}
 													alt=""
 													className="h-full w-[50px] shrink-0 object-cover"
 												/>

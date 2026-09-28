@@ -40,6 +40,23 @@ pub struct Model {
     pub custom_data: Option<CustomData>,
     pub user_rating: Option<f64>,
 
+    // === 网页版（TeleDrive）位置、封面版本与扫描状态 ===
+    #[sea_orm(column_type = "Text", nullable)]
+    pub teledrive_path: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub exe_relpath: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub cover_version: Option<String>,
+    /// 来源封面与自定义封面内容的 SHA-256；只由任务 7 的 set_cover_hashes_in_connection 写入
+    #[sea_orm(column_type = "Text", nullable)]
+    pub source_cover_hash: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub custom_cover_hash: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub scan_status: Option<String>,
+    #[sea_orm(column_type = "Json", nullable)]
+    pub scan_candidates: Option<Json>,
+
     // === 时间戳 ===
     pub created_at: Option<i32>,
     pub updated_at: Option<i32>,

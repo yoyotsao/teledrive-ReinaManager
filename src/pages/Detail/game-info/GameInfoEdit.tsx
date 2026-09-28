@@ -33,6 +33,7 @@ import { basename } from "pathe";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
+import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
 import { REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceDeveloperOptions } from "@/metadata/data/displayMergeRules";
 import { buildGameInfoUpdatePayload } from "@/metadata/data/metadata";
@@ -53,6 +54,12 @@ import {
 	uploadSelectedImage,
 } from "@/services/game/customCover";
 import { fileService } from "@/services/invoke";
+import { isWebRuntime, platformCapabilities } from "@/services/platform";
+import {
+	deleteCustomCover,
+	setSourceCover,
+	uploadCustomCover,
+} from "@/services/web/covers";
 import type {
 	FullGameData,
 	GameData,
@@ -103,7 +110,8 @@ const CHIP_INPUT_STYLE = {
 	color: "inherit",
 } as const;
 
-const PATH_SEPARATOR = sep();
+// 网页版没有 Tauri path 插件；在模块载入时呼叫 sep() 会直接丢错
+const PATH_SEPARATOR = platformCapabilities.nativePaths ? sep() : "/";
 
 interface GameInfoEditProps {
 	selectedGame: GameData;
@@ -119,7 +127,22 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 	disabled = false,
 }) => {
 	const { t } = useTranslation();
+	const web = isWebRuntime();
 	const resolveImageUrl = useProxyImageUrlResolver();
+	const [webCoverOverride, setWebCoverOverride] = useState<{
+		gameId: number;
+		version: string | null;
+	} | null>(null);
+	const webCoverVersion =
+		webCoverOverride?.gameId === selectedGame.id
+			? webCoverOverride.version
+			: undefined;
+	const webCoverUrl = useGameCoverSrc(
+		webCoverVersion === undefined
+			? selectedGame
+			: { ...selectedGame, cover_version: webCoverVersion },
+	);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const sourceImageMap = useMemo(
 		() => (rawGame ? getSourceImageMap(rawGame) : {}),
 		[rawGame],
@@ -169,8 +192,10 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 	// 使用自定义 Hook 管理图片预览
 	const {
 		selectedPath: selectedImagePath,
+		selectedFile,
 		previewUrl,
 		selectImage,
+		selectFile,
 		cleanup: cleanupPreview,
 	} = useImagePreview();
 
@@ -263,6 +288,16 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 		};
 	}, [cleanupClipboardTempImage]);
 
+	// 封面 query 同步到 API 回传的版本后，不再需要本地 override。
+	useEffect(() => {
+		if (
+			webCoverOverride?.gameId === selectedGame.id &&
+			selectedGame.cover_version === webCoverOverride.version
+		) {
+			setWebCoverOverride(null);
+		}
+	}, [selectedGame.cover_version, selectedGame.id, webCoverOverride]);
+
 	// 检查是否有任何更改
 	// 重要：比较时必须使用"展平后的原始值"作为基准，与初始化时一致
 	const hasChanges = () => {
@@ -283,7 +318,8 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 			steam.launchType !== (selectedGame.launch_type ?? "local") ||
 			effectiveSteamLaunchId !== (selectedGame.steam_launch_id ?? "") ||
 			gameNote !== currentCustomName ||
-			selectedImagePath !== null || // 有选择的图片但未保存
+			selectedImagePath !== null || // 桌面版有选择的图片但未保存
+			selectedFile !== null || // 网页版有选择的图片但未保存
 			shouldDeleteImage ||
 			hasSourceCoverChanged() ||
 			!stringArraysEqual(aliases, selectedGame.custom_data?.aliases) ||
@@ -361,6 +397,10 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 	// 处理自定义封面文件选择 - 只选择，不立即上传
 	const handleCustomCoverSelect = async () => {
 		handleImageMenuClose();
+		if (web) {
+			fileInputRef.current?.click();
+			return;
+		}
 
 		try {
 			// 选择图片文件
@@ -437,6 +477,12 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 				previewUrl,
 				sourceCoverImage,
 				sourceCoverChanged: hasSourceCoverChanged(),
+				fallbackCoverUrl: web
+					? webCoverUrl
+					: getGameCover({
+							...selectedGame,
+							image: sourceCoverImage ?? selectedGame.image,
+						}),
 			}),
 		);
 	};
@@ -557,13 +603,38 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 
 		try {
 			let uploadedImageExt: string | null | undefined;
+			let nextWebCoverVersion: string | null | undefined;
 
-			// 1. 先处理副作用：上传图片或删除图片
-			if (shouldDeleteImage) {
+			// 1. 先处理副作用：网页版走 reina-server，桌面版维持本机封面流程。
+			if (web) {
+				if (shouldDeleteImage) {
+					nextWebCoverVersion = (await deleteCustomCover(selectedGame.id))
+						.cover_version;
+				} else if (selectedFile) {
+					nextWebCoverVersion = (
+						await uploadCustomCover(selectedGame.id, selectedFile)
+					).cover_version;
+				}
+
+				if (
+					coverSourceChanged &&
+					originalSourceCoverImage !== nextSourceCoverImage
+				) {
+					nextWebCoverVersion = (
+						await setSourceCover(selectedGame.id, nextSourceCoverImage ?? null)
+					).cover_version;
+				}
+
+				if (nextWebCoverVersion !== undefined) {
+					setWebCoverOverride({
+						gameId: selectedGame.id,
+						version: nextWebCoverVersion,
+					});
+				}
+			} else if (shouldDeleteImage) {
 				await deleteGameCustomCovers(selectedGame.id);
-				uploadedImageExt = null; // 标记删除
+				uploadedImageExt = null;
 			} else if (selectedImagePath) {
-				// 上传本地选择的图片
 				uploadedImageExt = await uploadSelectedImage(
 					selectedGame.id,
 					selectedImagePath,
@@ -587,44 +658,44 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 				newNsfw: nsfw,
 				newDate: releaseDate,
 			});
-			// 防御：没有任何字段需要更新时，不发请求
-			if (Object.keys(updateData).length === 0) {
-				return;
-			}
+			const hasUpdateData = Object.keys(updateData).length > 0;
 
 			if (
+				!web &&
 				coverSourceChanged &&
 				originalSourceCoverImage !== nextSourceCoverImage
 			) {
 				await fileService.deleteCloudCoverCache(selectedGame.id);
 			}
 
-			// 3. 执行保存
-			const updatedGame = await onSave(updateData);
-			setLocalPath(updatedGame.localpath ?? "");
-			setExecutable(updatedGame.executable ?? "");
-			steam.actions.syncFromGame(updatedGame);
+			// 3. metadata 有变化时才发 RPC；纯网页版封面变更已经由 covers API 提交。
+			const updatedGame = hasUpdateData ? await onSave(updateData) : null;
+			if (updatedGame) {
+				setLocalPath(updatedGame.localpath ?? "");
+				setExecutable(updatedGame.executable ?? "");
+				steam.actions.syncFromGame(updatedGame);
+			}
 
 			if (clipboardTempImagePath) {
 				await cleanupClipboardTempImage();
 			}
 
-			// 4. 处理 UI 状态（乐观更新）
-			if (uploadedImageExt && typeof uploadedImageExt === "string") {
-				// 锁定新封面直到父级数据刷新，避免出现"旧图 -> 新图"的闪回
-				setPendingCoverImage(uploadedImageExt);
-				const newCoverUrl = getGameCover({
-					...selectedGame,
-					custom_data: {
-						...selectedGame.custom_data,
-						image: uploadedImageExt,
-					},
-				});
-				setTempCoverUrl(newCoverUrl);
-			} else if (uploadedImageExt === null) {
-				// 删除了封面
-				setPendingCoverImage(null);
-				setTempCoverUrl(null);
+			// 4. 桌面版沿用既有的乐观封面；网页版由 webCoverOverride 指向 API 新版本。
+			if (!web) {
+				if (uploadedImageExt && typeof uploadedImageExt === "string") {
+					setPendingCoverImage(uploadedImageExt);
+					const newCoverUrl = getGameCover({
+						...selectedGame,
+						custom_data: {
+							...selectedGame.custom_data,
+							image: uploadedImageExt,
+						},
+					});
+					setTempCoverUrl(newCoverUrl);
+				} else if (uploadedImageExt === null) {
+					setPendingCoverImage(null);
+					setTempCoverUrl(null);
+				}
 			}
 
 			// 延迟清理预览状态，给新封面时间加载
@@ -671,6 +742,30 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 									>
 										{t("pages.Detail.GameInfoEdit.selectImage", "选择图片")}
 									</Button>
+									{web && (
+										<input
+											ref={fileInputRef}
+											type="file"
+											accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
+											hidden
+											onChange={(event) => {
+												const file = event.target.files?.[0];
+												event.target.value = "";
+												if (!file) return;
+												if (file.size > 10 * 1024 * 1024) {
+													snackbar.error(
+														t(
+															"pages.Detail.GameInfoEdit.coverTooLarge",
+															"封面不能超过 10 MB",
+														),
+													);
+													return;
+												}
+												setShouldDeleteImage(false);
+												selectFile(file);
+											}}
+										/>
+									)}
 									<Menu
 										anchorEl={imageMenuAnchorEl}
 										open={Boolean(imageMenuAnchorEl)}
@@ -690,20 +785,22 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 												)}
 											</ListItemText>
 										</MenuItem>
-										<MenuItem
-											onClick={handleClipboardImageImport}
-											disabled={isLoading || disabled}
-										>
-											<ListItemIcon>
-												<ContentPasteIcon fontSize="small" />
-											</ListItemIcon>
-											<ListItemText>
-												{t(
-													"pages.Detail.GameInfoEdit.importFromClipboard",
-													"从剪贴板导入",
-												)}
-											</ListItemText>
-										</MenuItem>
+										{!web && (
+											<MenuItem
+												onClick={handleClipboardImageImport}
+												disabled={isLoading || disabled}
+											>
+												<ListItemIcon>
+													<ContentPasteIcon fontSize="small" />
+												</ListItemIcon>
+												<ListItemText>
+													{t(
+														"pages.Detail.GameInfoEdit.importFromClipboard",
+														"从剪贴板导入",
+													)}
+												</ListItemText>
+											</MenuItem>
+										)}
 										<MenuItem
 											onClick={handleSourceCoverDialogOpen}
 											disabled={isLoading || disabled || !canSelectSourceCover}
@@ -771,6 +868,15 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 													"pages.Detail.GameInfoEdit.previewSelected",
 													"已选择新图片，保存后生效",
 												)}: ${basename(selectedImagePath)}`}
+									</Typography>
+								)}
+								{selectedFile && (
+									<Typography variant="caption" color="primary">
+										{t(
+											"pages.Detail.GameInfoEdit.previewSelected",
+											"已选择新图片，保存后生效",
+										)}
+										: {selectedFile.name}
 									</Typography>
 								)}
 							</Stack>

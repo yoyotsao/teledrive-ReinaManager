@@ -380,6 +380,15 @@
 			"exit": "退出",
 			"open": "打开主窗口"
 		},
+		"WebAuthGate": {
+			"description": "ReinaManager 网页版沿用 TeleDrive 的登录。请在 TeleDrive 登录后回到本页。",
+			"openTeleDrive": "前往 TeleDrive 登录",
+			"retry": "我已登录，重新检查",
+			"title": "请先登录 TeleDrive"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "网页版不支持 OAuth 登录，请使用桌面版登录后再同步。"
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "不再提醒",
@@ -611,6 +620,7 @@
 				"closeSourceCoverDialog": "关闭",
 				"confirm": "确定",
 				"coverAndBasicInfo": "封面与基本信息",
+				"coverTooLarge": "封面不能超过 10 MB",
 				"customGameName": "自定义游戏名称",
 				"descriptionAndTags": "简介与标签",
 				"developer": "开发商",

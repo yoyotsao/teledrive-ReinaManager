@@ -6,7 +6,7 @@ use crate::database::dto::{
 };
 use crate::entity::prelude::*;
 use crate::entity::{game_sources, game_statistics, games, savedata};
-use crate::utils::fs::validate_executable_name;
+use crate::validation::{validate_executable_name, validate_safe_relative_path};
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
@@ -71,6 +71,11 @@ impl GamesRepository {
             g.custom_data,
             g.created_at,
             g.updated_at,
+            g.teledrive_path,
+            g.exe_relpath,
+            g.cover_version,
+            g.scan_status,
+            g.scan_candidates,
             (
                 SELECT json_group_array(
                     json_object(
@@ -159,6 +164,58 @@ impl GamesRepository {
             validate_executable_name(executable).map_err(DbErr::Custom)?;
         }
         Ok(())
+    }
+
+    /// 网页版位置：exe_relpath 必须挂在 teledrive_path 之下，两者都必须是安全相对路径。
+    fn validate_web_location(
+        teledrive_path: Option<&str>,
+        exe_relpath: Option<&str>,
+    ) -> Result<(), DbErr> {
+        if teledrive_path.is_none() && exe_relpath.is_some() {
+            return Err(DbErr::Custom(
+                "exe_relpath 不能在 teledrive_path 为空时单独存在".to_string(),
+            ));
+        }
+        if let Some(path) = teledrive_path {
+            validate_safe_relative_path(path)
+                .map_err(|error| DbErr::Custom(format!("teledrive_path 无效: {error}")))?;
+        }
+        if let Some(path) = exe_relpath {
+            validate_safe_relative_path(path)
+                .map_err(|error| DbErr::Custom(format!("exe_relpath 无效: {error}")))?;
+        }
+        Ok(())
+    }
+
+    async fn normalize_update_web_location<C>(
+        db: &C,
+        game_id: i32,
+        mut updates: UpdateGameData,
+    ) -> Result<UpdateGameData, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        if updates.teledrive_path.is_none() && updates.exe_relpath.is_none() {
+            return Ok(updates);
+        }
+
+        let current = Games::find_by_id(game_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| DbErr::RecordNotFound(format!("game {game_id} not found")))?;
+
+        // 清空云端位置代表游戏不再对应 TeleDrive 文件夹，可执行文件相对路径必须一起清空。
+        if matches!(updates.teledrive_path, Some(None)) {
+            updates.exe_relpath = Some(None);
+        }
+
+        let final_path = updates
+            .teledrive_path
+            .clone()
+            .unwrap_or(current.teledrive_path);
+        let final_exe = updates.exe_relpath.clone().unwrap_or(current.exe_relpath);
+        Self::validate_web_location(final_path.as_deref(), final_exe.as_deref())?;
+        Ok(updates)
     }
 
     fn normalize_steam_launch_id(value: &str) -> Result<String, DbErr> {
@@ -379,6 +436,13 @@ impl GamesRepository {
             magpie: NotSet,
             custom_data: Set(game.custom_data.clone()),
             user_rating: NotSet,
+            teledrive_path: Set(game.teledrive_path.clone()),
+            exe_relpath: Set(game.exe_relpath.clone()),
+            cover_version: NotSet,
+            source_cover_hash: NotSet,
+            custom_cover_hash: NotSet,
+            scan_status: Set(game.scan_status.clone()),
+            scan_candidates: Set(game.scan_candidates.clone()),
             created_at: Set(Some(now)),
             updated_at: Set(Some(now)),
         }
@@ -405,6 +469,10 @@ impl GamesRepository {
             magpie: updates.magpie.map_or(NotSet, Set),
             custom_data: updates.custom_data.clone().map_or(NotSet, Set),
             user_rating: NotSet,
+            teledrive_path: updates.teledrive_path.clone().map_or(NotSet, Set),
+            exe_relpath: updates.exe_relpath.clone().map_or(NotSet, Set),
+            scan_status: updates.scan_status.clone().map_or(NotSet, Set),
+            scan_candidates: updates.scan_candidates.clone().map_or(NotSet, Set),
             updated_at: Set(Some(now)),
             ..Default::default()
         }
@@ -464,7 +532,7 @@ impl GamesRepository {
         Ok(())
     }
 
-    pub(crate) async fn insert_aggregate<C>(
+    pub async fn insert_aggregate<C>(
         db: &C,
         mut game: InsertGameData,
         now: i32,
@@ -474,6 +542,7 @@ impl GamesRepository {
     {
         Self::validate_source_changes(&game.sources, &[])?;
         Self::validate_path_state(game.localpath.as_deref(), game.executable.as_deref())?;
+        Self::validate_web_location(game.teledrive_path.as_deref(), game.exe_relpath.as_deref())?;
         Self::normalize_insert_launch_state(&mut game)?;
         Self::normalize_insert_date(&mut game);
 
@@ -489,37 +558,43 @@ impl GamesRepository {
 
     // ==================== 游戏 CRUD 操作 ====================
 
+    /// 在外部连接或 transaction 内新增游戏；不 begin、不 commit。
+    pub async fn insert_in_connection<C>(
+        db: &C,
+        game: InsertGameData,
+    ) -> Result<FullGameData, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::insert_aggregate(db, game.cleaned(), chrono::Utc::now().timestamp() as i32).await
+    }
+
     pub async fn insert(
         db: &DatabaseConnection,
         game: InsertGameData,
     ) -> Result<FullGameData, DbErr> {
         let transaction = db.begin().await?;
-        let result = Self::insert_aggregate(
-            &transaction,
-            game.cleaned(),
-            chrono::Utc::now().timestamp() as i32,
-        )
-        .await?;
+        let result = Self::insert_in_connection(&transaction, game).await?;
         transaction.commit().await?;
         Ok(result)
     }
 
-    pub async fn insert_batch(
-        db: &DatabaseConnection,
+    /// 在外部 transaction 内批量新增；每条记录使用 savepoint，单条失败不影响其他记录。
+    pub async fn insert_batch_in_connection<C>(
+        db: &C,
         games: Vec<InsertGameData>,
-    ) -> BatchOperationResult {
+    ) -> BatchOperationResult
+    where
+        C: ConnectionTrait + TransactionTrait,
+    {
         let total = games.len();
-        let transaction = match db.begin().await {
-            Ok(transaction) => transaction,
-            Err(error) => return Self::build_batch_failure_result(total, error.to_string()),
-        };
         let now = chrono::Utc::now().timestamp() as i32;
         let mut ids = Vec::with_capacity(total);
         let mut inserted_games = Vec::with_capacity(total);
         let mut errors = Vec::new();
 
         for (index, game) in games.into_iter().enumerate() {
-            let nested = match transaction.begin().await {
+            let nested = match db.begin().await {
                 Ok(nested) => nested,
                 Err(error) => {
                     errors.push(BatchOperationError {
@@ -552,10 +627,6 @@ impl GamesRepository {
             }
         }
 
-        if let Err(error) = transaction.commit().await {
-            return Self::build_batch_failure_result(total, error.to_string());
-        }
-
         BatchOperationResult {
             total,
             success: ids.len(),
@@ -566,7 +637,23 @@ impl GamesRepository {
         }
     }
 
-    pub(crate) async fn update_aggregate<C>(
+    pub async fn insert_batch(
+        db: &DatabaseConnection,
+        games: Vec<InsertGameData>,
+    ) -> BatchOperationResult {
+        let total = games.len();
+        let transaction = match db.begin().await {
+            Ok(transaction) => transaction,
+            Err(error) => return Self::build_batch_failure_result(total, error.to_string()),
+        };
+        let result = Self::insert_batch_in_connection(&transaction, games).await;
+        if let Err(error) = transaction.commit().await {
+            return Self::build_batch_failure_result(total, error.to_string());
+        }
+        result
+    }
+
+    pub async fn update_aggregate<C>(
         db: &C,
         game_id: i32,
         updates: UpdateGameData,
@@ -582,6 +669,7 @@ impl GamesRepository {
         let updates = Self::normalize_update_date(db, game_id, updates).await?;
         let updates = Self::normalize_update_path_state(db, game_id, updates).await?;
         let updates = Self::normalize_update_launch_state(db, game_id, updates).await?;
+        let updates = Self::normalize_update_web_location(db, game_id, updates).await?;
 
         Self::build_update_active_model(game_id, &updates, now)
             .update(db)
@@ -604,21 +692,49 @@ impl GamesRepository {
             .ok_or_else(|| DbErr::RecordNotFound(format!("game {} not found", game_id)))
     }
 
+    /// 在外部连接或 transaction 内更新游戏；不 begin、不 commit。
+    pub async fn update_in_connection<C>(
+        db: &C,
+        game_id: i32,
+        updates: UpdateGameData,
+    ) -> Result<FullGameData, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::update_aggregate(
+            db,
+            game_id,
+            updates.cleaned(),
+            chrono::Utc::now().timestamp() as i32,
+        )
+        .await
+    }
+
     pub async fn update(
         db: &DatabaseConnection,
         game_id: i32,
         updates: UpdateGameData,
     ) -> Result<FullGameData, DbErr> {
         let transaction = db.begin().await?;
-        let result = Self::update_aggregate(
-            &transaction,
-            game_id,
-            updates.cleaned(),
-            chrono::Utc::now().timestamp() as i32,
-        )
-        .await?;
+        let result = Self::update_in_connection(&transaction, game_id, updates).await?;
         transaction.commit().await?;
         Ok(result)
+    }
+
+    /// 在外部连接或 transaction 内批量更新；任意一条失败即返回错误，由调用方决定是否 rollback。
+    pub async fn update_batch_in_connection<C>(
+        db: &C,
+        updates: Vec<(i32, UpdateGameData)>,
+    ) -> Result<Vec<FullGameData>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        let now = chrono::Utc::now().timestamp() as i32;
+        let mut updated_games = Vec::with_capacity(updates.len());
+        for (game_id, update) in updates {
+            updated_games.push(Self::update_aggregate(db, game_id, update.cleaned(), now).await?);
+        }
+        Ok(updated_games)
     }
 
     pub async fn update_batch(
@@ -628,18 +744,25 @@ impl GamesRepository {
         if updates.is_empty() {
             return Ok(Vec::new());
         }
-
         let transaction = db.begin().await?;
-        let now = chrono::Utc::now().timestamp() as i32;
-        let mut updated_games = Vec::with_capacity(updates.len());
-
-        for (game_id, update) in updates {
-            updated_games
-                .push(Self::update_aggregate(&transaction, game_id, update.cleaned(), now).await?);
-        }
-
+        let result = Self::update_batch_in_connection(&transaction, updates).await?;
         transaction.commit().await?;
-        Ok(updated_games)
+        Ok(result)
+    }
+
+    /// 依 TeleDrive 路径查找游戏 ID；扫描时用来判断文件夹是否已入库。
+    pub async fn find_id_by_teledrive_path<C>(
+        db: &C,
+        teledrive_path: &str,
+    ) -> Result<Option<i32>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Ok(Games::find()
+            .filter(games::Column::TeledrivePath.eq(teledrive_path))
+            .one(db)
+            .await?
+            .map(|game| game.id))
     }
 
     async fn find_full_by_id<C>(db: &C, id: i32) -> Result<Option<FullGameData>, DbErr>
@@ -686,6 +809,42 @@ impl GamesRepository {
         Self::find_ids_sql(db, game_type, sort_option, sort_order).await
     }
 
+    pub async fn find_cover_state(
+        conn: &impl ConnectionTrait,
+        id: i32,
+    ) -> Result<Option<CoverState>, DbErr> {
+        Ok(games::Entity::find_by_id(id)
+            .one(conn)
+            .await?
+            .map(|model| CoverState {
+                source_hash: model.source_cover_hash,
+                custom_hash: model.custom_cover_hash,
+            }))
+    }
+
+    /// 封面三个字段的唯一写入点。`None` 代表不修改该字段，`Some(None)` 代表清除。
+    /// 返回写入后的 cover_version（自定义封面优先）。游戏不存在时返回 RecordNotFound。
+    pub async fn set_cover_hashes_in_connection(
+        conn: &impl ConnectionTrait,
+        id: i32,
+        source: Option<Option<String>>,
+        custom: Option<Option<String>>,
+    ) -> Result<Option<String>, DbErr> {
+        let model = games::Entity::find_by_id(id)
+            .one(conn)
+            .await?
+            .ok_or_else(|| DbErr::RecordNotFound(format!("game {id}")))?;
+        let next_source = source.unwrap_or(model.source_cover_hash.clone());
+        let next_custom = custom.unwrap_or(model.custom_cover_hash.clone());
+        let version = next_custom.clone().or_else(|| next_source.clone());
+        let mut active: games::ActiveModel = model.into();
+        active.source_cover_hash = Set(next_source);
+        active.custom_cover_hash = Set(next_custom);
+        active.cover_version = Set(version.clone());
+        active.update(conn).await?;
+        Ok(version)
+    }
+
     // ==================== 查询操作 ====================
 
     async fn find_full_games_in_order<C>(db: &C, ids: &[i32]) -> Result<Vec<FullGameData>, DbErr>
@@ -722,6 +881,13 @@ impl GamesRepository {
                     .map_err(|error| DbErr::Custom(format!("custom_data 解析失败: {}", error)))
             })
             .transpose()?;
+        let scan_candidates = row
+            .try_get::<Option<String>>("", "scan_candidates")?
+            .map(|data| {
+                serde_json::from_str(&data)
+                    .map_err(|error| DbErr::Custom(format!("scan_candidates 解析失败: {}", error)))
+            })
+            .transpose()?;
         let sources_json: String = row.try_get("", "sources_json")?;
         let sources = serde_json::from_str::<Vec<GameSourceData>>(&sources_json)
             .map_err(|error| DbErr::Custom(format!("sources 聚合结果解析失败: {}", error)))?;
@@ -741,20 +907,28 @@ impl GamesRepository {
             le_launch: row.try_get("", "le_launch")?,
             magpie: row.try_get("", "magpie")?,
             custom_data,
+            teledrive_path: row.try_get("", "teledrive_path")?,
+            exe_relpath: row.try_get("", "exe_relpath")?,
+            cover_version: row.try_get("", "cover_version")?,
+            scan_status: row.try_get("", "scan_status")?,
+            scan_candidates,
             sources,
             created_at: row.try_get("", "created_at")?,
             updated_at: row.try_get("", "updated_at")?,
         })
     }
 
-    pub async fn delete(db: &DatabaseConnection, id: i32) -> Result<DeleteResult, DbErr> {
+    pub async fn delete<C>(db: &C, id: i32) -> Result<DeleteResult, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         Games::delete_by_id(id).exec(db).await
     }
 
-    pub async fn delete_many(
-        db: &DatabaseConnection,
-        ids: Vec<i32>,
-    ) -> Result<DeleteResult, DbErr> {
+    pub async fn delete_many<C>(db: &C, ids: Vec<i32>) -> Result<DeleteResult, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         Games::delete_many()
             .filter(games::Column::Id.is_in(ids))
             .exec(db)
@@ -1100,6 +1274,18 @@ impl GamesRepository {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoverState {
+    pub source_hash: Option<String>,
+    pub custom_hash: Option<String>,
+}
+
+impl CoverState {
+    pub fn current(&self) -> Option<&str> {
+        self.custom_hash.as_deref().or(self.source_hash.as_deref())
+    }
+}
+
 fn non_empty(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
@@ -1148,7 +1334,14 @@ mod tests {
                         CAST(json_extract(custom_data, '$.user_rating') AS REAL)
                     ) VIRTUAL,
                     created_at INTEGER,
-                    updated_at INTEGER
+                    updated_at INTEGER,
+                    teledrive_path TEXT,
+                    exe_relpath TEXT,
+                    cover_version TEXT,
+                    source_cover_hash TEXT,
+                    custom_cover_hash TEXT,
+                    scan_status TEXT,
+                    scan_candidates TEXT
                 );
                 CREATE TABLE game_sources (
                     game_id INTEGER NOT NULL,
@@ -1207,6 +1400,10 @@ mod tests {
             clear: None,
             le_launch: None,
             magpie: None,
+            teledrive_path: None,
+            exe_relpath: None,
+            scan_status: None,
+            scan_candidates: None,
             custom_data,
             sources,
         }

@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { PathSettingsModal } from "@/components/PathSettingsModal";
 import { useScrollRestore } from "@/hooks/common/useScrollRestore";
+import { platformCapabilities } from "@/services/platform";
 import { AboutSection } from "./AboutSettings";
 import { AccountSettings } from "./AccountSettings";
 import {
@@ -38,6 +39,8 @@ type SettingsSection = {
 	description: string;
 	content: React.ReactNode;
 	frame?: "card" | "plain";
+	/** 只有桌面版才有意义的分区（系统、路径与备份） */
+	desktopOnly?: boolean;
 };
 
 type SettingsPageHeaderProps = {
@@ -87,8 +90,8 @@ export const Settings: React.FC = () => {
 		[t, pageTitle],
 	);
 
-	const sections = useMemo<SettingsSection[]>(
-		() => [
+	const sections = useMemo<SettingsSection[]>(() => {
+		const allSections: SettingsSection[] = [
 			{
 				id: "account",
 				label: t("pages.Settings.sections.account", "账号与同步"),
@@ -142,6 +145,7 @@ export const Settings: React.FC = () => {
 					"pages.Settings.sections.systemDescription",
 					"管理启动、日志、关闭行为和计时模式。",
 				),
+				desktopOnly: true,
 				content: (
 					<Box className="space-y-5">
 						<AutoStartSettings />
@@ -169,6 +173,7 @@ export const Settings: React.FC = () => {
 					"pages.Settings.sections.storageDescription",
 					"配置本地路径，执行数据备份和恢复。",
 				),
+				desktopOnly: true,
 				content: (
 					<>
 						<SettingsGroup
@@ -208,9 +213,12 @@ export const Settings: React.FC = () => {
 				),
 				content: <AboutSection />,
 			},
-		],
-		[t],
-	);
+		];
+
+		return allSections.filter(
+			(section) => !section.desktopOnly || platformCapabilities.desktopShell,
+		);
+	}, [t]);
 
 	useEffect(() => {
 		const scrollContainer = document.querySelector<HTMLElement>("main");

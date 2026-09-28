@@ -1,5 +1,5 @@
 [workspace]
-members = ["reina-path", "migration"]
+members = ["reina-path", "migration", "reina-core", "reina-server"]
 
 [package]
 name = "ReinaManager"
@@ -93,6 +93,7 @@ url = "2.5.8"
 pinyin = "0.11.0"
 walkdir = "2.5.0"
 migration = { path = "migration" }
+reina-core = { path = "reina-core" }
 reina-path = { path = "reina-path" }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 

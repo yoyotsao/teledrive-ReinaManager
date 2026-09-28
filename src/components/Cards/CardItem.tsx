@@ -7,8 +7,8 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { forwardRef, memo } from "react";
+import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
 import { useStore } from "@/store/appStore";
-import { getVisibleGameCover } from "@/utils/game";
 import type { CardItemProps } from "./types";
 import { useCardInteraction } from "./useCardInteraction";
 
@@ -43,7 +43,7 @@ export const CardItem = memo(
 				useDelayedClick: interaction?.useDelayedClick ?? false,
 			});
 
-			const coverImage = getVisibleGameCover(game, nsfwCoverReplace);
+			const coverImage = useGameCoverSrc(game, nsfwCoverReplace);
 
 			return (
 				<Card

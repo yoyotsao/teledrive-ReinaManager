@@ -5,6 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import type { SortOrder } from "@/services/invoke";
 import { collectionService } from "@/services/invoke";
 import type { SelectedCategory } from "@/store/appStore";
@@ -15,7 +16,7 @@ import {
 } from "@/utils/game/gameIndex";
 
 export const collectionKeys = {
-	all: ["collections"] as const,
+	all: serverKey("collections"),
 	groups: () => [...collectionKeys.all, "groups"] as const,
 	groupList: (sortField?: CollectionBackendSortField, sortOrder?: SortOrder) =>
 		[

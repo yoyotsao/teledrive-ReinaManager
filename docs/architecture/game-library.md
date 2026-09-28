@@ -67,6 +67,16 @@ UI action
 - 新增游戏：同时失效合集和重复检测缓存。
 - 不影响列表归属或排序的局部更新：只 patch 聚合和索引。
 
+## 网页版跨装置同步
+
+网页版有多台装置同时修改同一份资料，另外提供一个全局版本：
+
+- `src/hooks/queries/serverKeys.ts` 的 `serverKey(...)` 是所有服务器资料 key 的根，`gameKeys`、`collectionKeys`、`statsKeys`、`settingsKeys`、`playStatusKeys`、`saveDataKeys` 都挂在 `["server", ...]` 下。新增来自服务器的 query 时也必须使用它。
+- `src/hooks/queries/useServerVersion.ts` 前景每 60 秒读取 `GET /game/api/version`；版本改变时失效整个 `["server"]` 前缀。这是「不因单个游戏更新而全量 refetch `gameKeys.all`」的**明确例外**：只在其他装置确实改过资料时发生。
+- 已同步版本只由轮询结果推进，不采用写入回应里的版本。
+- 本机写入仍照上面的规则用 `gameCachePatch.ts` 局部 patch；全量重新读取后，`useGameIndex` 会因 `rawList` 引用改变而重建 `GameIndex`。
+- 桌面安装任务（`taskKeys`）与本机 bridge 状态（`["bridge", ...]`）不在这个前缀下，不受版本失效影响。
+
 ## 禁止的做法
 
 - 不在业务代码中直接替换 `gameKeys.all`，这会绕过 `GameIndex`。

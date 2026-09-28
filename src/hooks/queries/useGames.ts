@@ -16,6 +16,7 @@ import {
 	patchGameCaches,
 	removeGamesFromCaches,
 } from "@/hooks/queries/gameCachePatch";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke";
 import { gameService } from "@/services/invoke";
 import type {
@@ -57,7 +58,7 @@ function invalidateSourceIdCaches(queryClient: QueryClient) {
 }
 
 export const gameKeys = {
-	all: ["games"] as const,
+	all: serverKey("games"),
 	index: () => [...gameKeys.all, "index"] as const,
 	idLists: () => [...gameKeys.all, "idList"] as const,
 	idList: (params: {
@@ -132,7 +133,9 @@ function useAddGame() {
 			}
 			await queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
 			invalidateSourceIdCaches(queryClient);
-			await queryClient.invalidateQueries({ queryKey: ["collections"] });
+			await queryClient.invalidateQueries({
+				queryKey: serverKey("collections"),
+			});
 		},
 	});
 }
@@ -160,7 +163,7 @@ function useBatchAddGames() {
 			}
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
 			invalidateSourceIdCaches(queryClient);
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
 		},
 	});
 }
@@ -174,8 +177,8 @@ function useDeleteGame() {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, [gameId]);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
-			queryClient.invalidateQueries({ queryKey: ["stats"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
+			queryClient.invalidateQueries({ queryKey: serverKey("stats") });
 		},
 	});
 }
@@ -189,8 +192,8 @@ function useDeleteGames() {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, gameIds);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
-			queryClient.invalidateQueries({ queryKey: ["stats"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
+			queryClient.invalidateQueries({ queryKey: serverKey("stats") });
 		},
 	});
 }

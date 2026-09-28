@@ -26,15 +26,16 @@ import {
 } from "@/hooks/common/useScrollRestore";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
 import { useActiveTaskCount } from "@/hooks/queries/useTasks";
+import { platformCapabilities, publicAssetUrl } from "@/services/platform";
 import { type SelectedCategory, useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
 import { getDeveloperCategoryGameIds } from "@/utils/game/gameIndex";
 
 /**
- * 侧边栏底部信息组件
+ * 下载任务按钮（桌面版专属，把 useActiveTaskCount 隔离在此避免网页版条件式呼叫 hook）
  * @returns {JSX.Element}
  */
-function SidebarFooter() {
+function DesktopTaskButton() {
 	const { t } = useTranslation();
 	const openTaskManager = useStore((s) => s.openTaskManager);
 	const { data: activeTaskCount = 0 } = useActiveTaskCount();
@@ -44,19 +45,29 @@ function SidebarFooter() {
 		: taskManagerLabel;
 
 	return (
+		<Tooltip title={accessibleLabel}>
+			<IconButton
+				onClick={openTaskManager}
+				color="inherit"
+				aria-label={accessibleLabel}
+				size="large"
+			>
+				<Badge badgeContent={activeTaskCount} color="primary" max={99}>
+					<DownloadRoundedIcon />
+				</Badge>
+			</IconButton>
+		</Tooltip>
+	);
+}
+
+/**
+ * 侧边栏底部信息组件
+ * @returns {JSX.Element}
+ */
+function SidebarFooter() {
+	return (
 		<Box className="absolute bottom-0 left-0 right-0 w-full text-center border-t select-none py-1 gap-4 flex flex-col items-center justify-center">
-			<Tooltip title={accessibleLabel}>
-				<IconButton
-					onClick={openTaskManager}
-					color="inherit"
-					aria-label={accessibleLabel}
-					size="large"
-				>
-					<Badge badgeContent={activeTaskCount} color="primary" max={99}>
-						<DownloadRoundedIcon />
-					</Badge>
-				</IconButton>
-			</Tooltip>
+			{platformCapabilities.desktopShell && <DesktopTaskButton />}
 			<Typography
 				variant="caption"
 				className="w-full text-center whitespace-nowrap overflow-hidden"
@@ -234,7 +245,7 @@ const CustomAppTitle = () => {
 			</Tooltip>
 			<Avatar
 				alt="Reina"
-				src="/images/reina.png"
+				src={publicAssetUrl("images/reina.png")}
 				onDragStart={(event) => event.preventDefault()}
 			/>
 			<Typography variant="h6">ReinaManager</Typography>
@@ -354,7 +365,9 @@ export const Layout: React.FC = () => {
 	return (
 		<>
 			<AddModal />
-			<TaskManagerDialog open={taskManagerOpen} onClose={closeTaskManager} />
+			{platformCapabilities.desktopShell && (
+				<TaskManagerDialog open={taskManagerOpen} onClose={closeTaskManager} />
+			)}
 			<DashboardLayout
 				slots={{
 					header: Header,

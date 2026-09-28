@@ -432,6 +432,36 @@ impl GameStatsRepository {
         .await
     }
 
+    /// 在外部 transaction 内写入会话并增量更新统计
+    pub async fn record_session_with_statistics_in_connection<C>(
+        db: &C,
+        game_id: i32,
+        start_time: i32,
+        end_time: i32,
+        duration: i32,
+    ) -> Result<game_sessions::Model, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        let date = local_date_from_timestamp(end_time)?;
+        let session =
+            Self::insert_session(db, game_id, start_time, end_time, duration, date).await?;
+
+        let projection = match Self::get_projection(db, game_id).await {
+            Ok(Some(mut projection)) => {
+                if apply_session_insert(&mut projection, &session, &Local).is_ok() {
+                    projection
+                } else {
+                    Self::calculate_projection(db, game_id).await?
+                }
+            }
+            Ok(None) | Err(_) => Self::calculate_projection(db, game_id).await?,
+        };
+
+        Self::upsert_projection(db, game_id, projection).await?;
+        Ok(session)
+    }
+
     /// 在同一事务内写入会话并增量更新统计
     pub async fn record_session_with_statistics(
         db: &DatabaseConnection,
@@ -440,26 +470,41 @@ impl GameStatsRepository {
         end_time: i32,
         duration: i32,
     ) -> Result<game_sessions::Model, DbErr> {
-        let date = local_date_from_timestamp(end_time)?;
         let transaction = db.begin().await?;
-        let session =
-            Self::insert_session(&transaction, game_id, start_time, end_time, duration, date)
-                .await?;
-
-        let projection = match Self::get_projection(&transaction, game_id).await {
-            Ok(Some(mut projection)) => {
-                if apply_session_insert(&mut projection, &session, &Local).is_ok() {
-                    projection
-                } else {
-                    Self::calculate_projection(&transaction, game_id).await?
-                }
-            }
-            Ok(None) | Err(_) => Self::calculate_projection(&transaction, game_id).await?,
-        };
-
-        Self::upsert_projection(&transaction, game_id, projection).await?;
+        let session = Self::record_session_with_statistics_in_connection(
+            &transaction,
+            game_id,
+            start_time,
+            end_time,
+            duration,
+        )
+        .await?;
         transaction.commit().await?;
         Ok(session)
+    }
+
+    /// 根据开始时间和分钟数创建手动会话（外部 transaction 版本）
+    pub async fn create_manual_session_in_connection<C>(
+        db: &C,
+        game_id: i32,
+        start_time: i32,
+        duration: i32,
+    ) -> Result<game_sessions::Model, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        if game_id <= 0 {
+            return Err(custom_error("游戏 ID 必须大于零"));
+        }
+
+        let current_time = i32::try_from(chrono::Utc::now().timestamp())
+            .map_err(|_| custom_error("当前时间超出数据库整数范围"))?;
+        let end_time = manual_session_end_time(start_time, duration, current_time)?;
+
+        Self::record_session_with_statistics_in_connection(
+            db, game_id, start_time, end_time, duration,
+        )
+        .await
     }
 
     /// 根据开始时间和分钟数创建手动会话
@@ -469,26 +514,30 @@ impl GameStatsRepository {
         start_time: i32,
         duration: i32,
     ) -> Result<game_sessions::Model, DbErr> {
+        let transaction = db.begin().await?;
+        let session =
+            Self::create_manual_session_in_connection(&transaction, game_id, start_time, duration)
+                .await?;
+        transaction.commit().await?;
+        Ok(session)
+    }
+
+    /// 从事实会话重建指定游戏的统计投影（外部 transaction 版本）
+    pub async fn rebuild_statistics_in_connection<C>(db: &C, game_id: i32) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         if game_id <= 0 {
             return Err(custom_error("游戏 ID 必须大于零"));
         }
-
-        let current_time = i32::try_from(chrono::Utc::now().timestamp())
-            .map_err(|_| custom_error("当前时间超出数据库整数范围"))?;
-        let end_time = manual_session_end_time(start_time, duration, current_time)?;
-
-        Self::record_session_with_statistics(db, game_id, start_time, end_time, duration).await
+        let projection = Self::calculate_projection(db, game_id).await?;
+        Self::upsert_projection(db, game_id, projection).await
     }
 
     /// 从事实会话重建指定游戏的统计投影
     pub async fn rebuild_statistics(db: &DatabaseConnection, game_id: i32) -> Result<(), DbErr> {
-        if game_id <= 0 {
-            return Err(custom_error("游戏 ID 必须大于零"));
-        }
-
         let transaction = db.begin().await?;
-        let projection = Self::calculate_projection(&transaction, game_id).await?;
-        Self::upsert_projection(&transaction, game_id, projection).await?;
+        Self::rebuild_statistics_in_connection(&transaction, game_id).await?;
         transaction.commit().await
     }
 
@@ -530,28 +579,26 @@ impl GameStatsRepository {
         Ok(sessions)
     }
 
-    /// 在同一事务内删除会话并增量更新统计
-    pub async fn delete_session_with_statistics(
-        db: &DatabaseConnection,
+    /// 在外部 transaction 内删除会话并增量更新统计；返回该会话的 game_id
+    pub async fn delete_session_with_statistics_in_connection<C>(
+        db: &C,
         session_id: i32,
-    ) -> Result<i32, DbErr> {
-        let transaction = db.begin().await?;
+    ) -> Result<i32, DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let session = GameSessions::find_by_id(session_id)
-            .one(&transaction)
+            .one(db)
             .await?
             .ok_or_else(|| DbErr::RecordNotFound(format!("会话不存在: {session_id}")))?;
-        let statistics = GameStatistics::find_by_id(session.game_id)
-            .one(&transaction)
-            .await?;
+        let statistics = GameStatistics::find_by_id(session.game_id).one(db).await?;
 
-        GameSessions::delete_by_id(session_id)
-            .exec(&transaction)
-            .await?;
+        GameSessions::delete_by_id(session_id).exec(db).await?;
 
         let projection = match statistics.map(projection_from_model).transpose() {
             Ok(Some(mut projection)) => {
                 let remaining_last_played = if projection.last_played == Some(session.end_time) {
-                    Self::get_latest_session_end(&transaction, session.game_id).await?
+                    Self::get_latest_session_end(db, session.game_id).await?
                 } else {
                     projection.last_played
                 };
@@ -561,15 +608,26 @@ impl GameStatsRepository {
                 {
                     projection
                 } else {
-                    Self::calculate_projection(&transaction, session.game_id).await?
+                    Self::calculate_projection(db, session.game_id).await?
                 }
             }
-            Ok(None) | Err(_) => Self::calculate_projection(&transaction, session.game_id).await?,
+            Ok(None) | Err(_) => Self::calculate_projection(db, session.game_id).await?,
         };
 
-        Self::upsert_projection(&transaction, session.game_id, projection).await?;
-        transaction.commit().await?;
+        Self::upsert_projection(db, session.game_id, projection).await?;
         Ok(session.game_id)
+    }
+
+    /// 在同一事务内删除会话并增量更新统计
+    pub async fn delete_session_with_statistics(
+        db: &DatabaseConnection,
+        session_id: i32,
+    ) -> Result<i32, DbErr> {
+        let transaction = db.begin().await?;
+        let game_id =
+            Self::delete_session_with_statistics_in_connection(&transaction, session_id).await?;
+        transaction.commit().await?;
+        Ok(game_id)
     }
 
     // ==================== 游戏统计操作 ====================
@@ -609,11 +667,14 @@ impl GameStatsRepository {
             .map(|session| session.end_time))
     }
 
-    async fn upsert_projection(
-        db: &DatabaseTransaction,
+    async fn upsert_projection<C>(
+        db: &C,
         game_id: i32,
         projection: StatisticsProjection,
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
         let daily_stats = serde_json::to_string(&projection.daily_stats)
             .map_err(|error| custom_error(format!("序列化每日统计失败: {error}")))?;
 

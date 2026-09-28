@@ -86,7 +86,7 @@ export function useCardsController({
 
 			if (cardClickMode === "navigate") {
 				setSelectedGameId(cardId);
-				saveScrollPosition(window.location.pathname);
+				saveScrollPosition(path);
 				navigate(`/libraries/${cardId}`);
 			} else {
 				setSelectedGameId(cardId);
@@ -95,6 +95,7 @@ export function useCardsController({
 		[
 			cardClickMode,
 			navigate,
+			path,
 			setSelectedGameId,
 			showBatchControls,
 			toggleBatchGame,

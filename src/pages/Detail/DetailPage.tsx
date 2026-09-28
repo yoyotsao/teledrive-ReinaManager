@@ -37,12 +37,14 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { CollectionPickerDialog } from "@/components/Collection";
+import { GameCoverImg } from "@/components/GameCover";
 import { useVirtualCategories } from "@/hooks/features/collections/useVirtualCollections";
 import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
+import { platformCapabilities } from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
-import { getGameCover, getGameDisplayName } from "@/utils/game";
+import { getGameDisplayName } from "@/utils/game";
 import { getDeveloperNames } from "@/utils/game/gameIndex";
 import { getTagDisplayName } from "@/utils/game/tagTranslation";
 import { Edit } from "./Edit";
@@ -262,8 +264,8 @@ export const Detail: React.FC = () => {
 				<Stack direction={{ xs: "column", md: "row" }} spacing={3}>
 					{/* 左侧：游戏图片 */}
 					<Box>
-						<img
-							src={getGameCover(selectedGame)}
+						<GameCoverImg
+							game={selectedGame}
 							loading="lazy"
 							alt={getGameDisplayName(selectedGame)}
 							className="max-h-65 max-w-40 lg:max-w-80 rounded-lg shadow-lg select-none"
@@ -508,6 +510,7 @@ export const Detail: React.FC = () => {
 								label={t("pages.Detail.backup", "存档")}
 								id="game-tab-3"
 								aria-controls="game-tabpanel-3"
+								disabled={!platformCapabilities.nativePaths}
 							/>
 							<Tab
 								label={t("pages.Detail.review", "评价")}

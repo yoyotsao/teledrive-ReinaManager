@@ -20,6 +20,7 @@
 | 修改外部元数据源、搜索或展示合并 | [`architecture/metadata.md`](architecture/metadata.md) |
 | 新增或修改国际化字符串 | [i18n Skill](../.agents/skills/i18n/SKILL.md) |
 | 由 AI 操作 WebView2、截图并诊断前端 | [cdp Skill](../.agents/skills/cdp/SKILL.md)，或调用 `/cdp` |
+| 接续 Web／Docker 计划 A 的任务 7（封面服务） | [进度交接](superpowers/plans/2026-09-27-plan-a-handoff.md) |
 
 ## 维护原则
 

@@ -51,7 +51,6 @@ import { useColorScheme } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open as openurl } from "@tauri-apps/plugin-shell";
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -70,6 +69,10 @@ import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
 import { snackbar } from "@/providers/snackBar";
 import { handleOpenFolder } from "@/services/fs/fileDialog";
+import {
+	openExternal as openurl,
+	platformCapabilities,
+} from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import type { GameData, SourceType } from "@/types";
 import type { PlayStatus } from "@/types/collection";
@@ -523,8 +526,10 @@ export const Buttongroup = ({
 				>
 					{(selectedGame) => (
 						<>
-							<LaunchModal />
-							<OpenFolder selectedGame={selectedGame} />
+							{platformCapabilities.nativeLaunch && <LaunchModal />}
+							{platformCapabilities.nativePaths && (
+								<OpenFolder selectedGame={selectedGame} />
+							)}
 							<DeleteModal id={selectedGame.id} />
 							<MoreButton selectedGame={selectedGame} />
 							<ThemeSwitcher />
@@ -534,7 +539,7 @@ export const Buttongroup = ({
 			)}
 			{isLibraries && (
 				<>
-					<LaunchModal />
+					{platformCapabilities.nativeLaunch && <LaunchModal />}
 					<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
 						{t("components.AddModal.addGame", "添加游戏")}
 					</Button>
