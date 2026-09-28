@@ -4679,6 +4679,7 @@ dependencies = [
  "env_logger",
  "futures-util",
  "http-body-util",
+ "httpdate",
  "jsonwebtoken",
  "log",
  "reina-core",

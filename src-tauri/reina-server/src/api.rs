@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod covers;
+pub mod metadata;
 pub mod router;
 pub mod rpc;
 pub mod version;

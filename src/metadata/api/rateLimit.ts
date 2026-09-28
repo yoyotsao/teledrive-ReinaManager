@@ -7,7 +7,7 @@ export type ApiRateLimitSource =
 	| "erogamescape"
 	| "hikarinagi";
 
-interface ApiRateLimitPolicy {
+export interface ApiRateLimitPolicy {
 	source: ApiRateLimitSource;
 	minIntervalMs: number;
 	defaultBackoffMs: number;
@@ -108,6 +108,12 @@ const API_RATE_LIMIT_POLICIES: Record<ApiRateLimitSource, ApiRateLimitPolicy> =
 			stopOn429: true,
 		},
 	};
+
+export function getApiRateLimitPolicy(
+	source: ApiRateLimitSource,
+): ApiRateLimitPolicy {
+	return API_RATE_LIMIT_POLICIES[source];
+}
 
 const rateLimitStates: Record<ApiRateLimitSource, ApiRateLimitState> = {
 	vndb: createInitialState(),

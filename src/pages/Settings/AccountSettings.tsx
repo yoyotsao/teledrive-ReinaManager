@@ -25,7 +25,7 @@ import TextField from "@mui/material/TextField";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
-import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
+import { useProxiedImageUrl } from "@/hooks/queries/useProxiedImageUrl";
 import {
 	useAllSettings,
 	useUpdateSettings,
@@ -146,7 +146,10 @@ const BgmAccountSummary = ({
 	onLogout,
 }: BgmAccountSummaryProps) => {
 	const { t } = useTranslation();
-	const resolveImageUrl = useProxyImageUrlResolver();
+	const username = bgmAuth?.username ?? "";
+	const avatarSrc = useProxiedImageUrl(
+		username ? getBgmAvatarUrl(username) : undefined,
+	);
 	if (!bgmAuth?.access_token) return null;
 
 	const isOAuth = Boolean(bgmAuth.refresh_token);
@@ -155,7 +158,6 @@ const BgmAccountSummary = ({
 		? new Date(expiresAt * 1000).toLocaleString()
 		: null;
 	const isExpired = expiresAt ? Date.now() / 1000 >= expiresAt : false;
-	const username = bgmAuth.username ?? "";
 	const displayName = bgmAuth.nickname || username;
 	const shouldShowCompleteButton =
 		!isOAuth && (bgmAuth.expires_at == null || !bgmAuth.username);
@@ -174,7 +176,7 @@ const BgmAccountSummary = ({
 			{username ? (
 				<Stack direction="row" spacing={2} alignItems="flex-start">
 					<Avatar
-						src={resolveImageUrl(getBgmAvatarUrl(username))}
+						src={avatarSrc}
 						alt={displayName}
 						sx={{ width: 44, height: 44 }}
 					/>
@@ -470,7 +472,7 @@ const HikarinagiAccountSummary = ({
 	onLogout,
 }: HikarinagiAccountSummaryProps) => {
 	const { t } = useTranslation();
-	const resolveImageUrl = useProxyImageUrlResolver();
+	const avatarSrc = useProxiedImageUrl(profile?.avatar?.src);
 	if (!auth?.access_token) return null;
 
 	const expiresAt = auth.expires_at ?? null;
@@ -482,11 +484,7 @@ const HikarinagiAccountSummary = ({
 
 	return (
 		<Stack direction="row" spacing={2} alignItems="flex-start" className="mb-2">
-			<Avatar
-				src={resolveImageUrl(profile?.avatar?.src)}
-				alt={displayName}
-				sx={{ width: 44, height: 44 }}
-			>
+			<Avatar src={avatarSrc} alt={displayName} sx={{ width: 44, height: 44 }}>
 				{displayName.slice(0, 1).toUpperCase()}
 			</Avatar>
 			<Box className="min-w-0 flex-1">

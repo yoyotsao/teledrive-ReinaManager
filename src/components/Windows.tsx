@@ -23,7 +23,7 @@ import { marked } from "marked";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
-import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
+import { ProxiedImage } from "@/components/ProxiedImage";
 import { snackbar } from "@/providers/snackBar";
 import { destroyCurrentWindow, getRunningGameCount } from "@/services/appExit";
 import { fileService } from "@/services/invoke";
@@ -53,7 +53,6 @@ interface UpdateModalProps {
 
 const UpdateModal: React.FC<UpdateModalProps> = ({ open, onClose, update }) => {
 	const { t } = useTranslation();
-	const resolveImageUrl = useProxyImageUrlResolver();
 	const [isDownloading, setIsDownloading] = useState(false);
 	const [progress, setProgress] = useState<UpdateProgress | null>(null);
 	const [downloadError, setDownloadError] = useState<string>("");
@@ -91,9 +90,12 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ open, onClose, update }) => {
 					domNode.name === "img" &&
 					domNode.attribs?.src
 				) {
-					domNode.attribs.src =
-						resolveImageUrl(domNode.attribs.src) ?? domNode.attribs.src;
-					return domNode;
+					return (
+						<ProxiedImage
+							src={domNode.attribs.src}
+							alt={domNode.attribs.alt ?? ""}
+						/>
+					);
 				}
 
 				// 只处理 <a> 标签
@@ -129,7 +131,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ open, onClose, update }) => {
 				return domNode;
 			},
 		});
-	}, [resolveImageUrl, update?.body]);
+	}, [update?.body]);
 
 	const handleUpdate = async () => {
 		if (!update) return;

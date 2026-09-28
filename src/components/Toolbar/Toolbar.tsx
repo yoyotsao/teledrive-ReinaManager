@@ -61,9 +61,9 @@ import { LaunchModal } from "@/components/LaunchModal";
 import { PathSettingsModal } from "@/components/PathSettingsModal";
 import { PlayStatusSubmenu } from "@/components/RightMenu/PlayStatusSubmenu";
 import { SelectedGameGuard } from "@/components/SelectedGameGuard";
-import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame, useUpdateGame } from "@/hooks/queries/useGames";
+import { useProxiedImageUrl } from "@/hooks/queries/useProxiedImageUrl";
 import { useAllSettings } from "@/hooks/queries/useSettings";
 import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
@@ -84,9 +84,8 @@ let lastAppliedWindowTheme: ThemeMode | null = null;
 
 const SourceLinkIcon = ({ source }: { source: SourceType }) => {
 	const [failedUrl, setFailedUrl] = useState<string>();
-	const resolveImageUrl = useProxyImageUrlResolver();
 	const adapter = getRuntimeSourceAdapter(source);
-	const imageUrl = resolveImageUrl(adapter.iconUrl);
+	const imageUrl = useProxiedImageUrl(adapter.iconUrl);
 
 	if (failedUrl === imageUrl) {
 		return <CloseIcon fontSize="small" sx={{ color: "error.main" }} />;
