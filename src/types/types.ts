@@ -298,6 +298,7 @@ export interface FullGameData extends GameRuntimePayload {
 	teledrive_path?: Nullable<string>;
 	exe_relpath?: Nullable<string>;
 	cover_version?: Nullable<string>;
+	has_custom_cover?: boolean;
 	scan_status?: Nullable<ScanStatus>;
 	scan_candidates?: JsonValue | null;
 }
@@ -436,6 +437,8 @@ export interface GameData
 	nsfw?: boolean;
 	// 网页版封面版本；useGameCoverSrc 依此判断要取哪一版 Blob
 	cover_version?: Nullable<string>;
+	// 网页版是否存在自定义封面；与来源封面版本分开，供移除入口判断
+	has_custom_cover?: boolean;
 }
 
 /**

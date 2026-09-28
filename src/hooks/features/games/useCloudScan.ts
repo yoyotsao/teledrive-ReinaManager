@@ -21,7 +21,12 @@ import {
 	type ScanPendingItem,
 	startCloudScan,
 } from "@/services/web/scan";
-import type { GameMetadataDraft, JsonValue, SourceType } from "@/types";
+import type {
+	CustomData,
+	GameMetadataDraft,
+	JsonValue,
+	SourceType,
+} from "@/types";
 
 export const CLOUD_SCAN_SOURCES: readonly SourceType[] = [
 	"vndb",
@@ -76,16 +81,37 @@ export function useCloudScan(overrides: Partial<CloudScanDeps> = {}) {
 	);
 
 	const saveAccepted = useCallback(
-		async (gameId: number, draft: GameMetadataDraft) => {
-			await gameService.updateGame(gameId, {
+		async (item: ScanPendingItem, draft: GameMetadataDraft) => {
+			const placeholderName =
+				item.teledrive_path
+					.replaceAll("\\", "/")
+					.split("/")
+					.filter(Boolean)
+					.at(-1) ?? "";
+			let customData: CustomData | undefined;
+
+			// 掃描建立時 custom_data.name 只是目錄名佔位。只有它仍等於原始
+			// TeleDrive 名稱時才清掉；使用者在掃描期間手動改名則必須保留。
+			if (placeholderName && item.name === placeholderName) {
+				const current = await gameService.getGameById(item.id);
+				if (current?.custom_data?.name === placeholderName) {
+					customData = {
+						...current.custom_data,
+						name: null,
+					};
+				}
+			}
+
+			await gameService.updateGame(item.id, {
 				...buildMetadataUpdatePayload(draft),
+				...(customData ? { custom_data: customData } : {}),
 				scan_status: "complete",
 				scan_candidates: null,
 			});
 
 			const image = draftCoverImage(draft);
 			if (image) {
-				await setSourceCover(gameId, image).catch(() => undefined);
+				await setSourceCover(item.id, image).catch(() => undefined);
 			}
 		},
 		[],
@@ -122,7 +148,7 @@ export function useCloudScan(overrides: Partial<CloudScanDeps> = {}) {
 					CLOUD_SCAN_SOURCES,
 				);
 				if (outcome.kind === "accepted") {
-					await saveAccepted(item.id, outcome.draft);
+					await saveAccepted(item, outcome.draft);
 				} else if (outcome.kind === "failed") {
 					failed += 1;
 					setFailedCount(failed);
@@ -165,7 +191,7 @@ export function useCloudScan(overrides: Partial<CloudScanDeps> = {}) {
 				candidate.externalId,
 				candidate.source,
 			);
-			await saveAccepted(item.id, draft);
+			await saveAccepted(item, draft);
 			await refresh();
 		},
 		[deps, refresh, saveAccepted],

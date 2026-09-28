@@ -56,6 +56,7 @@ import {
 import { fileService } from "@/services/invoke";
 import { isWebRuntime, platformCapabilities } from "@/services/platform";
 import {
+	type CoverVersionResponse,
 	deleteCustomCover,
 	setSourceCover,
 	uploadCustomCover,
@@ -132,6 +133,7 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 	const [webCoverOverride, setWebCoverOverride] = useState<{
 		gameId: number;
 		version: string | null;
+		hasCustomCover: boolean;
 	} | null>(null);
 	const webCoverVersion =
 		webCoverOverride?.gameId === selectedGame.id
@@ -142,6 +144,11 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 			? selectedGame
 			: { ...selectedGame, cover_version: webCoverVersion },
 	);
+	const hasCustomCover = web
+		? webCoverOverride?.gameId === selectedGame.id
+			? webCoverOverride.hasCustomCover
+			: Boolean(selectedGame.has_custom_cover)
+		: Boolean(selectedGame.custom_data?.image);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const sourceImageMap = useMemo(
 		() => (rawGame ? getSourceImageMap(rawGame) : {}),
@@ -292,11 +299,17 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 	useEffect(() => {
 		if (
 			webCoverOverride?.gameId === selectedGame.id &&
-			selectedGame.cover_version === webCoverOverride.version
+			selectedGame.cover_version === webCoverOverride.version &&
+			Boolean(selectedGame.has_custom_cover) === webCoverOverride.hasCustomCover
 		) {
 			setWebCoverOverride(null);
 		}
-	}, [selectedGame.cover_version, selectedGame.id, webCoverOverride]);
+	}, [
+		selectedGame.cover_version,
+		selectedGame.has_custom_cover,
+		selectedGame.id,
+		webCoverOverride,
+	]);
 
 	// 检查是否有任何更改
 	// 重要：比较时必须使用"展平后的原始值"作为基准，与初始化时一致
@@ -603,32 +616,34 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 
 		try {
 			let uploadedImageExt: string | null | undefined;
-			let nextWebCoverVersion: string | null | undefined;
+			let nextWebCoverState: CoverVersionResponse | undefined;
 
 			// 1. 先处理副作用：网页版走 reina-server，桌面版维持本机封面流程。
 			if (web) {
 				if (shouldDeleteImage) {
-					nextWebCoverVersion = (await deleteCustomCover(selectedGame.id))
-						.cover_version;
+					nextWebCoverState = await deleteCustomCover(selectedGame.id);
 				} else if (selectedFile) {
-					nextWebCoverVersion = (
-						await uploadCustomCover(selectedGame.id, selectedFile)
-					).cover_version;
+					nextWebCoverState = await uploadCustomCover(
+						selectedGame.id,
+						selectedFile,
+					);
 				}
 
 				if (
 					coverSourceChanged &&
 					originalSourceCoverImage !== nextSourceCoverImage
 				) {
-					nextWebCoverVersion = (
-						await setSourceCover(selectedGame.id, nextSourceCoverImage ?? null)
-					).cover_version;
+					nextWebCoverState = await setSourceCover(
+						selectedGame.id,
+						nextSourceCoverImage ?? null,
+					);
 				}
 
-				if (nextWebCoverVersion !== undefined) {
+				if (nextWebCoverState) {
 					setWebCoverOverride({
 						gameId: selectedGame.id,
-						version: nextWebCoverVersion,
+						version: nextWebCoverState.cover_version,
+						hasCustomCover: nextWebCoverState.has_custom_cover,
 					});
 				}
 			} else if (shouldDeleteImage) {
@@ -821,7 +836,7 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 										options={sourceImageOptions}
 										currentSource={coverSource}
 										hasCustomCover={Boolean(
-											selectedGame.custom_data?.image && !shouldDeleteImage,
+											hasCustomCover && !shouldDeleteImage,
 										)}
 										disabled={isLoading || disabled}
 										onClose={handleSourceCoverDialogClose}
@@ -829,7 +844,7 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 										onReset={() => void handleSourceCoverReset()}
 									/>
 
-									{selectedGame.custom_data?.image && !shouldDeleteImage && (
+									{hasCustomCover && !shouldDeleteImage && (
 										<Button
 											variant="outlined"
 											onClick={handleRemoveCustomCover}
@@ -853,7 +868,9 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 												"pages.Detail.GameInfoEdit.hasCustomCover",
 												"已设置自定义封面",
 											)}
-											: {selectedGame.custom_data.image}
+											{!web && selectedGame.custom_data?.image
+												? `: ${selectedGame.custom_data.image}`
+												: null}
 										</Typography>
 									)}
 

@@ -9,6 +9,7 @@ const {
 	startCloudScan,
 	getScanPending,
 	updateGame,
+	getStoredGameById,
 	setSourceCover,
 	checkServerVersion,
 	resolveCloudScanName,
@@ -16,6 +17,7 @@ const {
 	startCloudScan: vi.fn(),
 	getScanPending: vi.fn(),
 	updateGame: vi.fn(),
+	getStoredGameById: vi.fn(),
 	setSourceCover: vi.fn(),
 	checkServerVersion: vi.fn(),
 	resolveCloudScanName: vi.fn(),
@@ -26,7 +28,7 @@ vi.mock("@/services/web/scan", () => ({
 	getScanPending,
 }));
 vi.mock("@/services/invoke", () => ({
-	gameService: { updateGame },
+	gameService: { updateGame, getGameById: getStoredGameById },
 }));
 vi.mock("@/services/web/covers", () => ({ setSourceCover }));
 vi.mock("@/hooks/queries/useServerVersion", () => ({
@@ -70,6 +72,7 @@ describe("useCloudScan", () => {
 			startCloudScan,
 			getScanPending,
 			updateGame,
+			getStoredGameById,
 			setSourceCover,
 			checkServerVersion,
 			resolveCloudScanName,
@@ -77,6 +80,7 @@ describe("useCloudScan", () => {
 			fn.mockReset();
 		}
 		updateGame.mockResolvedValue({});
+		getStoredGameById.mockResolvedValue(null);
 		setSourceCover.mockResolvedValue({
 			cover_version: "h",
 		});
@@ -120,6 +124,10 @@ describe("useCloudScan", () => {
 					],
 				},
 			]);
+		getStoredGameById.mockResolvedValueOnce({
+			id: 1,
+			custom_data: { name: "A" },
+		});
 		resolveCloudScanName
 			.mockResolvedValueOnce({
 				kind: "accepted",
@@ -145,6 +153,7 @@ describe("useCloudScan", () => {
 			1,
 			expect.objectContaining({
 				id_type: "vndb",
+				custom_data: { name: null },
 				scan_status: "complete",
 				scan_candidates: null,
 			}),
@@ -192,6 +201,10 @@ describe("useCloudScan", () => {
 
 	it("使用者確認候選後抓完整資料並完成", async () => {
 		getScanPending.mockResolvedValue([]);
+		getStoredGameById.mockResolvedValue({
+			id: 2,
+			custom_data: { name: "B" },
+		});
 		const getGameById = vi.fn(async () => draft);
 		const { result } = renderHook(() => useCloudScan({ getGameById }), {
 			wrapper,
@@ -227,6 +240,36 @@ describe("useCloudScan", () => {
 		);
 	});
 
+	it("使用者已修改佔位名稱時保留 custom_data.name", async () => {
+		startCloudScan.mockResolvedValue({
+			added_ids: [],
+			pending_ids: [9],
+		});
+		getScanPending.mockResolvedValue([
+			{
+				id: 9,
+				name: "我的遊戲名稱",
+				teledrive_path: "game/123456",
+				scan_status: "pending",
+				scan_candidates: [],
+			},
+		]);
+		resolveCloudScanName.mockResolvedValueOnce({
+			kind: "accepted",
+			draft,
+		});
+
+		const { result } = renderHook(() => useCloudScan(), { wrapper });
+		await act(async () => {
+			await result.current.scan();
+		});
+
+		expect(getStoredGameById).not.toHaveBeenCalled();
+		expect(updateGame).toHaveBeenCalledWith(
+			9,
+			expect.not.objectContaining({ custom_data: expect.anything() }),
+		);
+	});
 	it("查詢失敗的條目不寫入、維持 pending，並計入 failedCount", async () => {
 		startCloudScan.mockResolvedValue({
 			added_ids: [4],

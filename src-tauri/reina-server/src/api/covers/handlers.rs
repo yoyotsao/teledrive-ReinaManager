@@ -47,6 +47,7 @@ pub struct VersionQuery {
 #[derive(Serialize)]
 pub struct CoverVersionResponse {
     cover_version: Option<String>,
+    has_custom_cover: bool,
 }
 
 async fn get_cover(
@@ -143,18 +144,24 @@ async fn commit_cover_change(
     .await;
     match result {
         Ok(cover_version) => {
-            if let Some(state_after) = GamesRepository::find_cover_state(&state.db, game_id).await?
-            {
-                let keep: Vec<&str> = [
-                    state_after.source_hash.as_deref(),
-                    state_after.custom_hash.as_deref(),
-                ]
-                .into_iter()
-                .flatten()
-                .collect();
-                store.retain_only(game_id, &keep).await;
-            }
-            Ok(CoverVersionResponse { cover_version })
+            let state_after = GamesRepository::find_cover_state(&state.db, game_id)
+                .await?
+                .ok_or_else(|| {
+                    ApiError::new(StatusCode::NOT_FOUND, "game_not_found", "game not found")
+                })?;
+            let keep: Vec<&str> = [
+                state_after.source_hash.as_deref(),
+                state_after.custom_hash.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
+            let has_custom_cover = state_after.custom_hash.is_some();
+            store.retain_only(game_id, &keep).await;
+            Ok(CoverVersionResponse {
+                cover_version,
+                has_custom_cover,
+            })
         }
         Err(error) => {
             if let Some(staged) = staged {

@@ -14,13 +14,15 @@ import { useTranslation } from "react-i18next";
 import { ViewGameBox } from "@/components/AlertBox";
 import { SelectedGameGuard } from "@/components/SelectedGameGuard";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
-import { useUpdateGame } from "@/hooks/queries/useGames";
+import {
+	useUpdateGame,
+	useUpdateGameWithSourceCover,
+} from "@/hooks/queries/useGames";
 import {
 	buildMetadataUpdatePayload,
 	type MetadataFetchResult,
 } from "@/metadata/data/metadata";
 import { snackbar } from "@/providers/snackBar";
-import { fileService } from "@/services/invoke";
 import type {
 	GameData,
 	GameMetadataDraft,
@@ -49,6 +51,7 @@ export const Edit: React.FC = () => {
 
 function EditContent({ selectedGame }: { selectedGame: GameData }) {
 	const updateGameMutation = useUpdateGame();
+	const sourceCoverUpdateMutation = useUpdateGameWithSourceCover();
 	const { t } = useTranslation();
 	const id = selectedGame.id;
 	const { index: gameIndex, isLoading: isGameIndexLoading } = useGameIndex();
@@ -65,12 +68,14 @@ function EditContent({ selectedGame }: { selectedGame: GameData }) {
 		data: GameMetadataDraft,
 		failedMetadataSources: readonly SourceType[] = [],
 	) => {
-		await fileService.deleteCloudCoverCache(id);
 		const updateData: UpdateGameParams = buildMetadataUpdatePayload(
 			data,
 			failedMetadataSources,
 		);
-		await updateGameMutation.mutateAsync({ gameId: id, updates: updateData });
+		await sourceCoverUpdateMutation.mutateAsync({
+			gameId: id,
+			updates: updateData,
+		});
 		snackbar.success(t("pages.Detail.Edit.updateSuccess", "游戏信息已更新"));
 	};
 
@@ -91,8 +96,7 @@ function EditContent({ selectedGame }: { selectedGame: GameData }) {
 
 	// 只切换当前展示/合并使用的数据源，不重新拉取元数据
 	const handleSourceSwitch = async (idType: string) => {
-		await fileService.deleteCloudCoverCache(id);
-		await updateGameMutation.mutateAsync({
+		await sourceCoverUpdateMutation.mutateAsync({
 			gameId: id,
 			updates: { id_type: idType },
 		});

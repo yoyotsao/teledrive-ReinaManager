@@ -9,6 +9,7 @@ import { AppError } from "@/utils/errors";
 
 export interface CoverVersionResponse {
 	cover_version: string | null;
+	has_custom_cover: boolean;
 }
 
 // 与 http.ts 的 SERVER_API_PREFIX 一致的固定字面量，不依赖

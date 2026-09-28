@@ -83,6 +83,7 @@ impl GamesRepository {
             g.teledrive_path,
             g.exe_relpath,
             g.cover_version,
+            CASE WHEN g.custom_cover_hash IS NULL THEN 0 ELSE 1 END AS has_custom_cover,
             g.scan_status,
             g.scan_candidates,
             (
@@ -970,6 +971,7 @@ impl GamesRepository {
             teledrive_path: row.try_get("", "teledrive_path")?,
             exe_relpath: row.try_get("", "exe_relpath")?,
             cover_version: row.try_get("", "cover_version")?,
+            has_custom_cover: row.try_get::<i32>("", "has_custom_cover")? != 0,
             scan_status: row.try_get("", "scan_status")?,
             scan_candidates,
             sources,

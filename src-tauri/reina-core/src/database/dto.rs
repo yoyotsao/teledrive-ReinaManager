@@ -305,6 +305,7 @@ pub struct FullGameData {
     pub teledrive_path: Option<String>,
     pub exe_relpath: Option<String>,
     pub cover_version: Option<String>,
+    pub has_custom_cover: bool,
     pub scan_status: Option<String>,
     pub scan_candidates: Option<Value>,
     pub sources: Vec<GameSourceData>,

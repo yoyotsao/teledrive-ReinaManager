@@ -68,7 +68,15 @@ async fn 上传后以版本网址取得且缓存为_immutable() {
     let (status, json) = put_cover(&app, id, PNG).await;
     assert_eq!(status, StatusCode::OK);
     let version = json["cover_version"].as_str().unwrap().to_string();
+    assert_eq!(json["has_custom_cover"], true);
     assert_eq!(app.data_version().await, before + 1);
+
+    let game = app
+        .rpc("find_game_by_id", serde_json::json!({ "id": id }))
+        .await;
+    assert_eq!(game.status, StatusCode::OK);
+    let game: serde_json::Value = serde_json::from_slice(&game.body).unwrap();
+    assert_eq!(game["has_custom_cover"], true);
 
     let response = get_cover(&app, id, &version).await;
     assert_eq!(response.status, StatusCode::OK);
@@ -134,6 +142,13 @@ async fn 删除自定义封面后回到来源封面() {
     assert_eq!(response.status, StatusCode::OK);
     let json: serde_json::Value = serde_json::from_slice(&response.body.clone()).unwrap();
     assert_eq!(json["cover_version"].as_str().unwrap(), source_version);
+    assert_eq!(json["has_custom_cover"], false);
+
+    let game = app
+        .rpc("find_game_by_id", serde_json::json!({ "id": id }))
+        .await;
+    let game: serde_json::Value = serde_json::from_slice(&game.body).unwrap();
+    assert_eq!(game["has_custom_cover"], false);
 }
 
 #[tokio::test]
