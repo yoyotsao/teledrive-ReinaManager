@@ -67,6 +67,21 @@ describe("authenticatedFetch", () => {
 		expect(authOf(1)).toBe("Bearer jwt-2");
 	});
 
+	it("bridge 401 也由 authenticatedFetch 刷新 TeleDrive JWT 后重试", async () => {
+		fetchMock
+			.mockResolvedValueOnce(new Response(null, { status: 401 }))
+			.mockResolvedValueOnce(Response.json({ games: [] }));
+
+		const response = await authenticatedFetch(
+			"http://127.0.0.1:8081/rpc/game/state?paths=game%2FA",
+		);
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(refreshJwt).toHaveBeenCalledWith("jwt-1");
+		expect(authOf(0)).toBe("Bearer jwt-1");
+		expect(authOf(1)).toBe("Bearer jwt-2");
+	});
+
 	it("重试后仍 401：丢 NotLoggedInError 并发出 auth-required 事件", async () => {
 		const listener = vi.fn();
 		window.addEventListener(AUTH_REQUIRED_EVENT, listener);

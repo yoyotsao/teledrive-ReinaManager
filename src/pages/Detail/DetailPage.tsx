@@ -38,10 +38,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { CollectionPickerDialog } from "@/components/Collection";
 import { GameCoverImg } from "@/components/GameCover";
+import { LaunchModal } from "@/components/LaunchModal";
 import { useVirtualCategories } from "@/hooks/features/collections/useVirtualCollections";
 import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
-import { platformCapabilities } from "@/services/platform";
+import { isWebRuntime, platformCapabilities } from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
 import { getGameDisplayName } from "@/utils/game";
@@ -274,6 +275,11 @@ export const Detail: React.FC = () => {
 					</Box>
 					{/* 右侧：游戏信息 */}
 					<Box className="flex-1">
+						{isWebRuntime() && (
+							<div className="mb-4">
+								<LaunchModal game={selectedGame} />
+							</div>
+						)}
 						<Stack
 							direction={{ xs: "column", sm: "row" }}
 							className="flex flex-wrap [&>div]:mr-6 [&>div]:mb-2"

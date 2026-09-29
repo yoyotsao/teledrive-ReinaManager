@@ -43,6 +43,8 @@
 
 `src/providers/queryClient.ts` 将本地事实默认视为长期 fresh，远程查询可使用单独的时效配置。Zustand `persist` 只保存选定偏好，并通过 `appStoreMigrations.ts` 迁移。不要将数据库实体复制到 Zustand 形成第二事实源。
 
+网页版 TeleDrive 游戏通过 `useBridgeGames` 查询本机 bridge，使用独立的 `['bridge', ...]` Query namespace，不放进服务器资料版本前缀。bridge 查询显式使用即时过期策略：挂载、窗口聚焦、网络重连时重读；下载中每 2 秒、运行中每 10 秒轮询，页面置于背景或没有活跃工作时停止固定轮询。HTTP 仍经 `authenticatedFetch`，业务操作由 `useGameLaunchFlow` 编排，组件只消费 hook 状态。
+
 全库统计页复用 `useAllGameStatistics` 的共享 Query，并与 `GameIndex` 中的展示游戏按 ID 关联。概览、排行和趋势在页面私有纯函数中按日期范围派生；24 小时与星期分布通过独立 Query 将当前可见游戏 ID 和日期范围交给后端聚合。统计读取失败必须保留 Query 错误态，不能转换为空数据。
 
 ## 标准数据流
@@ -67,6 +69,7 @@ Page / Component
 - 增加后端调用：在 `services/invoke` 扩展对应 service。
 - 增加数据查询或写入：在 `hooks/queries` 定义 key、hook 和缓存策略。
 - 编排多个数据源或状态：在 `hooks/features` 提供业务门面。
+- Web 本机 bridge RPC：在 `services/web` 复用 `authenticatedFetch`，在 `hooks/queries` 管理 bridge 状态与轮询，在游戏 feature hook 编排下载和启动。
 - 增加页面：在 `pages` 实现，并更新集中路由配置。
 - 增加全局偏好：更新 store 及其持久化选择；必要时增加 store migration。
 

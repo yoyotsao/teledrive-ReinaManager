@@ -1,4 +1,5 @@
 import CheckIcon from "@mui/icons-material/Check";
+import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -7,6 +8,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { forwardRef, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
 import { useStore } from "@/store/appStore";
 import type { CardItemProps } from "./types";
@@ -36,6 +38,7 @@ export const CardItem = memo(
 		) => {
 			const nsfwCoverReplace = useStore((s) => s.nsfwCoverReplace);
 			const isActive = useStore((s) => s.selectedGameId === game.id);
+			const { t } = useTranslation();
 
 			const { handlers } = useCardInteraction({
 				onClick: interaction?.onClick ?? noop,
@@ -83,6 +86,18 @@ export const CardItem = memo(
 							>
 								<RemoveCircleIcon fontSize="medium" />
 							</IconButton>
+						</Tooltip>
+					)}
+					{game.teledrive_path && (
+						<Tooltip
+							title={t(
+								"components.LaunchModal.bridgeCloudGame",
+								"可通过 TeleDrive 下载到本机",
+							)}
+						>
+							<Box className="absolute top-1.5 right-1.5 z-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-white">
+								<CloudQueueIcon fontSize="small" />
+							</Box>
 						</Tooltip>
 					)}
 					<CardActionArea

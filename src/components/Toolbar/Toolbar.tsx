@@ -68,8 +68,8 @@ import { useAllSettings } from "@/hooks/queries/useSettings";
 import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
 import { snackbar } from "@/providers/snackBar";
-import { handleOpenFolder } from "@/services/fs/fileDialog";
 import {
+	isWebRuntime,
 	openExternal as openurl,
 	platformCapabilities,
 } from "@/services/platform";
@@ -260,6 +260,11 @@ export const useModal = () => {
 const OpenFolder = ({ selectedGame }: { selectedGame: GameData }) => {
 	const { t } = useTranslation();
 	const isDisabled = selectedGame.localpath == null;
+	const openFolder = async () => {
+		if (isWebRuntime()) return;
+		const { handleOpenFolder } = await import("@/services/fs/fileDialog");
+		await handleOpenFolder(selectedGame);
+	};
 
 	return (
 		<Button
@@ -267,7 +272,7 @@ const OpenFolder = ({ selectedGame }: { selectedGame: GameData }) => {
 			color="primary"
 			variant="text"
 			disabled={isDisabled}
-			onClick={() => handleOpenFolder(selectedGame)}
+			onClick={() => void openFolder()}
 		>
 			{t("components.Toolbar.openGameFolder", "打开游戏目录")}
 		</Button>
@@ -525,7 +530,9 @@ export const Buttongroup = ({
 				>
 					{(selectedGame) => (
 						<>
-							{platformCapabilities.nativeLaunch && <LaunchModal />}
+							{(platformCapabilities.nativeLaunch || isWebRuntime()) && (
+								<LaunchModal />
+							)}
 							{platformCapabilities.nativePaths && (
 								<OpenFolder selectedGame={selectedGame} />
 							)}
@@ -538,7 +545,9 @@ export const Buttongroup = ({
 			)}
 			{isLibraries && (
 				<>
-					{platformCapabilities.nativeLaunch && <LaunchModal />}
+					{(platformCapabilities.nativeLaunch || isWebRuntime()) && (
+						<LaunchModal />
+					)}
 					<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
 						{t("components.AddModal.addGame", "添加游戏")}
 					</Button>

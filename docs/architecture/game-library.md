@@ -12,6 +12,8 @@
 
 `GameIndex` 同时保存 `rawList/rawById`、`displayList/displayById`、ID、数据源可用性和开发商索引。业务代码应按需选择 raw 或 display，不要在组件中重复转换。
 
+`GameData` 展平后的 `teledrive_path` 与 `exe_relpath` 是服务器保存的 canonical 相对路径。Web bridge feature 只使用这两个展示字段，不从 raw cache 读取 Windows 绝对路径；本机 bridge 状态位于独立的 `['bridge', 'games', ...]` Query namespace，不进入 `GameIndex` 或服务器游戏缓存。
+
 ## Query key
 
 `src/hooks/queries/useGames.ts` 维护：
@@ -66,6 +68,7 @@ UI action
 - 删除游戏：同时失效合集和统计。
 - 新增游戏：同时失效合集和重复检测缓存。
 - 不影响列表归属或排序的局部更新：只 patch 聚合和索引。
+- 修改 TeleDrive 路径或 exe 相对路径：按游戏资料 mutation 更新 `GameIndex`；本机下载/运行状态由 bridge Query 自己刷新，不失效服务器 namespace。
 
 ## 网页版跨装置同步
 

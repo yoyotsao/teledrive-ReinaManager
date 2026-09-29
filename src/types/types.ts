@@ -416,6 +416,9 @@ export interface GameData
 	localpath?: string;
 	executable?: string;
 	steam_launch_id?: string;
+	// 網頁版 TeleDrive bridge 的 canonical 相對路徑與 exe 相對路徑
+	teledrive_path?: string;
+	exe_relpath?: string;
 	savepath?: string;
 	custom_data?: CustomData;
 	created_at?: number;

@@ -143,7 +143,7 @@ Produces:
 - <code>GameRpc.verify_browser_token(token: str, origin: str) -&gt; int</code>，成功回傳 owner Telegram user id
 - 共用 JSON/CORS response helper
 
-- [ ] **Step 1: 先固定 config 與 CORS contract 的失敗測試**
+- [x] **Step 1: 先固定 config 與 CORS contract 的失敗測試**
 
 <code>config.example.ini</code> 新增：
 
@@ -196,7 +196,7 @@ Run:
 
 Expected: config 欄位、GameRpc 都尚不存在而失敗。
 
-- [ ] **Step 2: 實作 config，不動既有 endpoint config**
+- [x] **Step 2: 實作 config，不動既有 endpoint config**
 
 <code>load_config()</code> 從 <code>[reina]</code> 讀取三個欄位；<code>allowed_origin</code> 用 <code>rstrip("/")</code> 正規化，但不要接受 wildcard。
 
@@ -205,7 +205,7 @@ Expected: config 欄位、GameRpc 都尚不存在而失敗。
 - 設定值帶尾斜線時 only origin 比對仍一致。
 - Locale Emulator 空字串表示功能停用。
 
-- [ ] **Step 3: 寫 browser token 驗證，明確繞開 <code>_call</code>**
+- [x] **Step 3: 寫 browser token 驗證，明確繞開 <code>_call</code>**
 
 流程：
 
@@ -232,7 +232,7 @@ def _validate_with_teledrive(self, token):
 
 測試 FakeBackend 必須能看到傳入 Authorization，並明確斷言它是 browser token，不是 bridge own token。
 
-- [ ] **Step 4: 新增 <code>GameRpc</code>，舊 <code>RpcApp</code> 只做精確分派**
+- [x] **Step 4: 新增 <code>GameRpc</code>，舊 <code>RpcApp</code> 只做精確分派**
 
 在 <code>gamestate.py</code> 先建立 GameRpc 骨架，下載/launch handler 可暫回 501。
 
@@ -244,7 +244,7 @@ def _validate_with_teledrive(self, token):
 
 不要修改 <code>Dispatcher</code> 對 <code>/rpc</code> 的既有入口。
 
-- [ ] **Step 5: 做 auth/security regression**
+- [x] **Step 5: 做 auth/security regression**
 
 新增測試：
 - missing bearer → 401。
@@ -263,7 +263,7 @@ Run:
 .venv\Scripts\python.exe -m pytest tests/test_game_rpc.py tests/test_bridge_e2e.py -q
 ~~~
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit（bridge repo）：
 
@@ -296,7 +296,7 @@ Produces:
 - <code>cfg.cache_dir / "reina-games.json"</code>
 - <code>&lt;game root&gt;/.reina-complete</code>
 
-- [ ] **Step 1: 用測試鎖住現有 destination semantics**
+- [x] **Step 1: 用測試鎖住現有 destination semantics**
 
 針對：
 - TeleDrive 普通 folder。
@@ -325,7 +325,7 @@ assert fetcher.destination_for(segments) == root
 - <code>fetch(windows_path)</code> 仍先用 <code>resolver.dav_path_from_windows()</code>，然後只呼叫 <code>fetch_segments(segments, ...)</code>；舊 Explorer 行為不變。
 - Web RPC 的 canonical <code>teledrive_path</code>（例如 <code>game/A</code>）**不轉成 <code>H:\game\A</code>**。GameState 先驗證/切成 DAV segments，再直接呼叫 <code>destination_for(segments)</code> / <code>fetch_segments(segments, ...)</code>。
 
-- [ ] **Step 2: 先寫 ZIP 大小寫回歸測試**
+- [x] **Step 2: 先寫 ZIP 大小寫回歸測試**
 
 規則固定：
 
@@ -342,7 +342,7 @@ Run:
 
 Expected: 現有 <code>children.get(top + ".zip")</code> 讓大寫案例失敗。
 
-- [ ] **Step 3: 先抽出 segment-level 共用核心，再加取消/續傳**
+- [x] **Step 3: 先抽出 segment-level 共用核心，再加取消/續傳**
 
 把現行 <code>fetch(windows_path)</code> 中「resolve → _plan → copy → progress」搬到 <code>fetch_segments(segments, ...)</code>。<code>fetch(windows_path)</code> 只保留：
 1. 輸出原本的 <code>target:</code> line。
@@ -363,7 +363,7 @@ Expected: 現有 <code>children.get(top + ".zip")</code> 讓大寫案例失敗�
 
 測試用 fake reader 強迫 short read、mid-file cancel、第二次 resume。
 
-- [ ] **Step 4: 寫 GameState 背景工作與持久化 path map**
+- [x] **Step 4: 寫 GameState 背景工作與持久化 path map**
 
 資料結構建議：
 
@@ -399,7 +399,7 @@ GameState 先用單一 helper 將 canonical path 轉成 segments，例如：
 
 <code>reina-games.json</code> 用 tmp → flush/fsync → <code>os.replace</code>；不要只靠 process-memory mapping。
 
-- [ ] **Step 5: 狀態判定必須有固定優先序**
+- [x] **Step 5: 狀態判定必須有固定優先序**
 
 對每個 path：
 
@@ -417,7 +417,7 @@ GameState 先用單一 helper 將 canonical path 轉成 segments，例如：
 - 沒 mapping 時，仍用同一個 <code>canonical_game_segments(path)</code> + <code>destination_for(segments)</code> 推導；root 存在、無 marker → <code>incomplete</code>。
 - state/fetch/exes/launch 對 canonical path 的解析必須共用同一 helper，避免同一路徑在不同 RPC 得到不同本機 root。
 
-- [ ] **Step 6: 接上 RPC，paths 用重複 query parameter**
+- [x] **Step 6: 接上 RPC，paths 用重複 query parameter**
 
 <code>GameRpc</code>：
 - GET state：<code>parse_qs(...).get("paths", [])</code>。
@@ -426,7 +426,7 @@ GameState 先用單一 helper 將 canonical path 轉成 segments，例如：
 
 禁止用 <code>path1,path2</code>，否則遊戲名本身含逗號會壞。
 
-- [ ] **Step 7: 回歸與 commit**
+- [x] **Step 7: 回歸與 commit**
 
 Run:
 
@@ -480,7 +480,7 @@ bridgeService.getExes(path)
 bridgeService.launch({ path, exe_relpath, game_id, locale_emulator })
 ~~~
 
-- [ ] **Step 1: 先補正 display DTO 邊界**
+- [x] **Step 1: 先補正 display DTO 邊界**
 
 目前 <code>FullGameData</code> 已有 <code>teledrive_path/exe_relpath</code>，但 <code>GameData</code> 沒有。先寫 transform 測試，再讓 <code>getDisplayGameData</code> 展平：
 
@@ -491,7 +491,7 @@ exe_relpath?: string;
 
 Web feature hook 只能用 GameData 裡的相對 path；不要從 raw cache 偷 Windows path。
 
-- [ ] **Step 2: service 只複用既有 authenticatedFetch**
+- [x] **Step 2: service 只複用既有 authenticatedFetch**
 
 <code>src/services/web/http.ts</code> 已經白名單允許：
 - origin <code>http://127.0.0.1:8081</code>
@@ -505,7 +505,7 @@ bridge service 不再自己讀 IndexedDB、不再自己刷新 JWT。
 - fetch reject/瀏覽器 Private Network Access/CORS error → local bridge unavailable。
 - 409 launch → <code>bridge_game_not_ready</code> 或 <code>bridge_exe_invalid</code>，讓 feature hook能要求重選。
 
-- [ ] **Step 3: query hook 使用 bridge namespace，不放 server namespace**
+- [x] **Step 3: query hook 使用 bridge namespace，不放 server namespace**
 
 Query key 例如：
 
@@ -534,7 +534,7 @@ refetchIntervalInBackground: false,
 
 POST fetch / DELETE cancel / POST launch 成功後立即 invalidate/refetch bridge state；元件不碰 QueryClient。
 
-- [ ] **Step 4: feature hook 按 runtime 分流**
+- [x] **Step 4: feature hook 按 runtime 分流**
 
 桌面：保留現有 <code>handleExeFile</code> + <code>useGamePlayStore</code>。
 
@@ -550,7 +550,7 @@ Web：
 
 Locale Emulator checkbox 只有 bridge config 支援時顯示；若 task 10/13 回傳 capability，可由 state/exes response 附 capability；若沒有 capability endpoint，launch 409/validation error 必須有可理解文案。
 
-- [ ] **Step 5: running → 非 running 時同步 server version**
+- [x] **Step 5: running → 非 running 時同步 server version**
 
 query hook/feature hook 保留前一次 state。偵測某 path 從 running 轉到其他狀態時：
 
@@ -560,7 +560,7 @@ void checkServerVersion();
 
 不要直接 invalidate stats，因為 bridge queue 可能尚未 POST 成功；真正資料變更仍由 server <code>data_version</code> 決定。
 
-- [ ] **Step 6: UI / i18n 測試**
+- [x] **Step 6: UI / i18n 測試**
 
 至少測：
 - absent：下載。
@@ -585,7 +585,7 @@ pnpm build
 pnpm build:web
 ~~~
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 Commit（ReinaManager）：
 
