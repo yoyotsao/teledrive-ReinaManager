@@ -145,7 +145,7 @@ mod tests {
                             if !auth_ok(&headers) {
                                 return Err(StatusCode::UNAUTHORIZED);
                             }
-                            let files = if query.get("parent_id").is_none() {
+                            let files = if !query.contains_key("parent_id") {
                                 json!([{
                                     "file_id": "g",
                                     "filename": "game",

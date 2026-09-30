@@ -52,7 +52,7 @@ async fn fake_teledrive(listing: Listing, accept_owner: bool) -> String {
                             if !accept_owner || !forwarded_owner_token(&headers) {
                                 return Err(StatusCode::UNAUTHORIZED);
                             }
-                            let files: Vec<Value> = if query.get("parent_id").is_none() {
+                            let files: Vec<Value> = if !query.contains_key("parent_id") {
                                 vec![json!({
                                     "file_id": "g",
                                     "filename": "game",
@@ -290,7 +290,7 @@ async fn teledrive_列表中途失敗時回_502_不留下任何條目() {
             .route(
                 "/api/v1/folders",
                 get(|Query(query): Query<HashMap<String, String>>| async move {
-                    if query.get("parent_id").is_none() {
+                    if !query.contains_key("parent_id") {
                         Json(json!({
                             "total": 1,
                             "files": [{
