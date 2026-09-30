@@ -95,6 +95,8 @@ FullGameData.sources
 - `AbortSignal` 取消。
 - 按数据源限流、429 退避和稳定错误分类。
 
+网页版没有 Tauri HTTP：元数据请求经 reina-server 的 `/game/api/metadata/request` 与 `/game/api/metadata/image` 代理（服务器端有主机白名单、限流和大小限制），TeleDrive JWT 只发往同源 `/game/api/` 与 bridge，不会带给第三方数据源。
+
 新 API 实现应复用该边界，不在 Adapter 里自建重复 HTTP 客户端。
 
 ## 新增数据源

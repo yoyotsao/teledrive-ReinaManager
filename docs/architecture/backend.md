@@ -38,6 +38,8 @@ Tauri command
 
 Linux `reina-server` 透过 `/game/api` 提供网页端 API，复用 `reina-core` 的 DTO、repository 与实体。bridge 会话写入 `game_sessions` 时保留外部 UUID、设备和精确秒数；兼容统计仍投影为分钟，并在同一 transaction 更新统计与 `data_version`。桌面监控和 server 共用 repository 中的秒转分钟规则。
 
+`reina-server` 的边界：`/game/api/rpc/{command}` 只暴露白名单 command，读操作不开 transaction，写操作在 `tx::finish` 中与 `data_version` 同一次 commit（游玩记录重送等无变化的写入不递增版本）。`/game/api/version` 返回该版本，`/game/api/sessions` 接收 bridge 的游玩记录，封面存于 `<REINA_DATA_DIR>/covers/game_<id>/<sha256>.<ext>`，数据库为 `<REINA_DATA_DIR>/reina_manager.db`，`/game/healthz` 在 DB 打开和迁移完成后才可用。server 不下载游戏也不启动进程，这些属于本机 bridge。统计日期使用进程本地时区（生产为 `Asia/Taipei`），见[部署文档](../deployment/web-docker.md)。
+
 游戏是聚合根：写入时在同一事务中维护 `games` 和 `game_sources`。合集与游戏统计的跨表不变量也由 repository 事务保护。`Option<Option<T>>` 在更新 DTO 中区分“不修改”和“显式清空”。
 
 全库统计中的时段分布是 `game_sessions` 的只读投影：command 校验包含首尾日期的范围与游戏 ID，repository 按会话开始时间汇总本地小时和星期。它不创建领域实体或持久化表，前端需传入经过内容过滤后的游戏 ID。

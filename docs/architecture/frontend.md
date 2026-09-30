@@ -49,6 +49,15 @@
 
 全库统计页复用 `useAllGameStatistics` 的共享 Query，并与 `GameIndex` 中的展示游戏按 ID 关联。概览、排行和趋势在页面私有纯函数中按日期范围派生；24 小时与星期分布通过独立 Query 将当前可见游戏 ID 和日期范围交给后端聚合。统计读取失败必须保留 Query 错误态，不能转换为空数据。
 
+网页版的两类 Query 不要混用：
+
+| 命名空间 | 来源 | 刷新方式 |
+| --- | --- | --- |
+| `["server", ...]`（`serverKey(...)`） | reina-server `/game/api` | 前景每 60 秒查 `data_version`，变化时整体失效；游戏结束、聚焦、重连时立即查 |
+| `["bridge", "games", ...]`（`bridgeKeys`） | 本机 bridge `/rpc/game/*` | 挂载/聚焦/重连重读；下载中 2 秒、运行中 10 秒轮询；不受 `data_version` 影响 |
+
+bridge 不可用（`bridge_unavailable`）只禁用下载/执行，不影响 server 资料。游玩记录是最终一致：bridge 先入本机队列再补送，所以游戏结束后统计可能延迟到 server 接受、下一次版本检查后才出现。
+
 ## 标准数据流
 
 ```text

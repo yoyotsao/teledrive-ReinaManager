@@ -18,6 +18,7 @@
 | 修改 Tauri command、Rust 模块、数据库或原生能力 | [`architecture/backend.md`](architecture/backend.md) |
 | 修改游戏列表、`GameIndex` 或 Query 缓存 | [`architecture/game-library.md`](architecture/game-library.md) |
 | 修改外部元数据源、搜索或展示合并 | [`architecture/metadata.md`](architecture/metadata.md) |
+| 部署、回滚、备份网页版（`/game`）或排查 bridge/CORS/401/游玩记录问题 | [`deployment/web-docker.md`](deployment/web-docker.md) |
 | 新增或修改国际化字符串 | [i18n Skill](../.agents/skills/i18n/SKILL.md) |
 | 由 AI 操作 WebView2、截图并诊断前端 | [cdp Skill](../.agents/skills/cdp/SKILL.md)，或调用 `/cdp` |
 | 接续 Web／Docker 计划 A 的任务 7（封面服务） | [进度交接](superpowers/plans/2026-09-27-plan-a-handoff.md) |

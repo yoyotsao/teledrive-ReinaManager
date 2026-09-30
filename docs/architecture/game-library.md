@@ -80,6 +80,15 @@ UI action
 - 本机写入仍照上面的规则用 `gameCachePatch.ts` 局部 patch；全量重新读取后，`useGameIndex` 会因 `rawList` 引用改变而重建 `GameIndex`。
 - 桌面安装任务（`taskKeys`）与本机 bridge 状态（`["bridge", ...]`）不在这个前缀下，不受版本失效影响。
 
+### bridge 与 server 的 Query key
+
+| key 前缀 | 内容 | 失效时机 |
+| --- | --- | --- |
+| `["server", ...]` | 游戏、合集、统计、设置、存档等服务器事实 | `data_version` 变化、本机写入的 patch/invalidate |
+| `["bridge", "games", "states", paths]` | 本机下载/运行状态（`running/downloading/ready/incomplete/absent`） | 自身轮询、下载/取消/启动 mutation 成功后 `bridgeKeys.all` |
+
+游戏结束后（`running` → 非 `running`）会立即检查 `data_version`；若游玩记录仍在 bridge 队列，则要等 server 接受，再由 60 秒轮询或下一次检查刷新统计。这是最终一致，不是缺陷。
+
 ## 禁止的做法
 
 - 不在业务代码中直接替换 `gameKeys.all`，这会绕过 `GameIndex`。
