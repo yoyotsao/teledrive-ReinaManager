@@ -11,7 +11,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
@@ -28,6 +28,8 @@ export const BASE_URL_ENV = "REINA_E2E_BASE_URL";
 /** @type {import("node:child_process").ChildProcess | null} */
 let serverProcess = null;
 let serverLog = "";
+/** 本次 run 专属的临时目录（mkdtempSync，并行 run 互不干扰），stopTestEnv 时删除 */
+let tempRoots = [];
 
 function freePort() {
 	return new Promise((resolvePort, reject) => {
@@ -64,15 +66,27 @@ function locateServerBinary() {
 	return binary;
 }
 
-/** 数据目录只允许在系统临时目录内，防止误删/误用真实资料 */
-function prepareDataDir() {
-	const dataDir = join(tmpdir(), "reina-e2e-data");
-	if (!dataDir.startsWith(resolve(tmpdir()) + sep)) {
-		throw new Error(`拒绝使用临时目录以外的资料目录: ${dataDir}`);
+/** 临时目录必须在系统临时目录内（防止误删/误用真实资料）；每次 run 唯一 */
+function makeTempDir(prefix) {
+	const root = resolve(tmpdir());
+	const dir = mkdtempSync(join(root, prefix));
+	if (!resolve(dir).startsWith(root + sep)) {
+		rmSync(dir, { recursive: true, force: true });
+		throw new Error(`拒绝使用临时目录以外的目录: ${dir}`);
 	}
-	rmSync(dataDir, { recursive: true, force: true });
-	mkdirSync(dataDir, { recursive: true });
-	return dataDir;
+	tempRoots.push(dir);
+	return dir;
+}
+
+function removeTempDirs() {
+	const dirs = tempRoots;
+	tempRoots = [];
+	const root = resolve(tmpdir()) + sep;
+	for (const dir of dirs) {
+		if (resolve(dir).startsWith(root)) {
+			rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+		}
+	}
 }
 
 async function waitForHealth(baseUrl, child) {
@@ -106,13 +120,16 @@ export async function startTestEnv() {
 		);
 	}
 
-	const dataDir = prepareDataDir();
+	const dataDir = makeTempDir("reina-e2e-data-");
 	// 复制一份 binary：重新 build 不会被 Windows 文件锁挡住，也不会动到共用 target 内的产物
-	const binaryDir = join(dataDir, "..", "reina-e2e-bin");
-	rmSync(binaryDir, { recursive: true, force: true });
-	mkdirSync(binaryDir, { recursive: true });
+	const binaryDir = makeTempDir("reina-e2e-bin-");
 	const binary = join(binaryDir, `reina-server${EXE}`);
-	copyFileSync(locateServerBinary(), binary);
+	try {
+		copyFileSync(locateServerBinary(), binary);
+	} catch (error) {
+		removeTempDirs();
+		throw error;
+	}
 
 	const port = await freePort();
 	const baseUrl = `http://127.0.0.1:${port}`;
@@ -157,13 +174,15 @@ export async function startTestEnv() {
 export async function stopTestEnv() {
 	const child = serverProcess;
 	serverProcess = null;
-	if (!child || child.exitCode !== null) return;
-	await new Promise((resolveStop) => {
-		child.once("exit", () => resolveStop(undefined));
-		child.kill();
-		setTimeout(() => {
-			child.kill("SIGKILL");
-			resolveStop(undefined);
-		}, 5000).unref();
-	});
+	if (child && child.exitCode === null) {
+		await new Promise((resolveStop) => {
+			child.once("exit", () => resolveStop(undefined));
+			child.kill();
+			setTimeout(() => {
+				child.kill("SIGKILL");
+				resolveStop(undefined);
+			}, 5000).unref();
+		});
+	}
+	removeTempDirs();
 }
