@@ -28,6 +28,7 @@ vi.mock("@/services/web/covers", () => ({ setSourceCover }));
 import {
 	gameKeys,
 	useAddGame,
+	usePatchGameCover,
 	useUpdateGame,
 	useUpdateGameWithSourceCover,
 } from "./useGames";
@@ -294,5 +295,34 @@ describe("useUpdateGameWithSourceCover", () => {
 
 		expect(deleteCloudCoverCache).toHaveBeenCalledWith(10);
 		expect(setSourceCover).not.toHaveBeenCalled();
+	});
+});
+
+describe("usePatchGameCover", () => {
+	it("純封面變更直接合併進遊戲快取，不需重新抓取", () => {
+		const queryClient = new QueryClient();
+		const game = {
+			id: 3,
+			id_type: "vndb",
+			launch_type: "local",
+			sources: [],
+			cover_version: "old",
+			has_custom_cover: false,
+		} as FullGameData;
+		queryClient.setQueryData(gameKeys.all, [game]);
+		const localWrapper = ({ children }: { children: ReactNode }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(() => usePatchGameCover(), {
+			wrapper: localWrapper,
+		});
+		act(() => {
+			result.current(3, { cover_version: "new", has_custom_cover: true });
+		});
+
+		const cached = queryClient.getQueryData<FullGameData[]>(gameKeys.all)?.[0];
+		expect(cached?.cover_version).toBe("new");
+		expect(cached?.has_custom_cover).toBe(true);
 	});
 });

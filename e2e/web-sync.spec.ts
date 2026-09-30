@@ -224,7 +224,7 @@ test.describe("多装置同步", () => {
 		const requestsB = coverRequests(deviceB);
 
 		// 上传
-		// （详情页主图在同装置上要等下一次版本检查/reload 才换新，所以这里不立刻断言主图）
+		// 自己的封面写入直接更新缓存：不 reload、不 focus，主图 src 就会换新
 		await saveEdit(deviceA, { cover: RED_PNG() });
 		const uploaded = await server.rpc<{ cover_version: string | null }>(
 			"find_game_by_id",
@@ -233,7 +233,6 @@ test.describe("多装置同步", () => {
 		const version1 = uploaded.cover_version;
 		expect(version1).toBeTruthy();
 
-		await deviceA.reload();
 		await expect(coverImg(deviceA, "Sync3-Cover")).toHaveAttribute(
 			"src",
 			/^blob:/,
@@ -249,7 +248,6 @@ test.describe("多装置同步", () => {
 
 		// 移除
 		await saveEdit(deviceA, { removeCover: true });
-		await deviceA.reload();
 		await expect(coverImg(deviceA, "Sync3-Cover")).toHaveAttribute(
 			"src",
 			/default\.png/,

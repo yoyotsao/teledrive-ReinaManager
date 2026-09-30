@@ -34,6 +34,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
 import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
+import { usePatchGameCover } from "@/hooks/queries/useGames";
 import { REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceDeveloperOptions } from "@/metadata/data/displayMergeRules";
 import { buildGameInfoUpdatePayload } from "@/metadata/data/metadata";
@@ -129,6 +130,7 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 }) => {
 	const { t } = useTranslation();
 	const web = isWebRuntime();
+	const patchGameCover = usePatchGameCover();
 	const resolveImageUrl = useProxyImageUrlResolver();
 	const [webCoverOverride, setWebCoverOverride] = useState<{
 		gameId: number;
@@ -640,6 +642,7 @@ export const GameInfoEdit: React.FC<GameInfoEditProps> = ({
 				}
 
 				if (nextWebCoverState) {
+					patchGameCover(selectedGame.id, nextWebCoverState);
 					setWebCoverOverride({
 						gameId: selectedGame.id,
 						version: nextWebCoverState.cover_version,

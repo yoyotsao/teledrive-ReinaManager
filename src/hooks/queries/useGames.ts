@@ -289,6 +289,32 @@ function useUpdateGameWithSourceCover() {
 	};
 }
 
+/**
+ * 網頁版純封面變更（covers API）後，直接把新的 cover_version / has_custom_cover
+ * 合併進遊戲快取與索引，不必等輪詢或 focus 才換圖。
+ */
+function usePatchGameCover() {
+	const queryClient = useQueryClient();
+
+	return (
+		gameId: number,
+		cover: { cover_version: string | null; has_custom_cover: boolean },
+	) => {
+		const current = queryClient
+			.getQueryData<FullGameData[]>(gameKeys.all)
+			?.find((game) => game.id === gameId);
+		if (!current) {
+			queryClient.invalidateQueries({ queryKey: gameKeys.all, exact: true });
+			return;
+		}
+		patchGameCaches(queryClient, gameKeys, {
+			...current,
+			cover_version: cover.cover_version,
+			has_custom_cover: cover.has_custom_cover,
+		});
+	};
+}
+
 export {
 	useAddGame,
 	useAllBgmIds,
@@ -298,6 +324,7 @@ export {
 	useDeleteGame,
 	useDeleteGames,
 	useGameIdList,
+	usePatchGameCover,
 	useUpdateGame,
 	useUpdateGameWithSourceCover,
 };
