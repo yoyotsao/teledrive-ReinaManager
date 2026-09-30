@@ -504,6 +504,52 @@ test.describe("bridge 游戏控制状态机", () => {
 			});
 		});
 
+		test("reconnect：A 缓存 absent 且停止轮询，离线期间 bridge 状态改变；恢复上线后 A 重新读取并恢复轮询", async ({
+			page: pageA,
+			context,
+			baseUrl,
+			server,
+			bridge,
+		}) => {
+			const path = uniquePath("multi-reconnect");
+			const id = await createCloudGame(server, "Bridge-Reconnect", path);
+			await login(pageA, baseUrl);
+			await openDetail(pageA, baseUrl, id);
+			await expect(btn(pageA, "下载到本机")).toBeVisible();
+			const serverCalls = watchServerCalls(pageA);
+
+			// 离线：navigator.onLine=false，react-query onlineManager 收到 offline 事件
+			await context.setOffline(true);
+			await expect
+				.poll(() => pageA.evaluate(() => navigator.onLine))
+				.toBe(false);
+			// 离线期间只有 bridge 改变（没有 server 写入，version invalidation 无法解释）
+			bridge.transition(path, {
+				status: "downloading",
+				completed_bytes: 5 * 1024 * 1024,
+				total_bytes: 20 * 1024 * 1024,
+			});
+			const polls = () => stateRequests(bridge).length;
+			const before = polls();
+			await expect(btn(pageA, "下载到本机")).toBeVisible();
+
+			// 恢复上线 → refetchOnReconnect 重新读取 bridge 状态
+			await context.setOffline(false);
+			await expect
+				.poll(() => pageA.evaluate(() => navigator.onLine))
+				.toBe(true);
+			await expect.poll(polls).toBeGreaterThan(before);
+			await expect(btn(pageA, "取消下载")).toBeVisible();
+			await expect(main(pageA).getByText("5.0 MB / 20.0 MB")).toBeVisible();
+
+			// 恢复 2 秒轮询：之后的变化不靠 focus/上线事件就能看到
+			bridge.transition(path, { completed_bytes: 15 * 1024 * 1024 });
+			await expect(main(pageA).getByText("15.0 MB / 20.0 MB")).toBeVisible();
+			expect(
+				serverCalls.filter((c) => c.startsWith("POST /game/api/rpc/")),
+			).not.toContain("POST /game/api/rpc/update_game");
+		});
+
 		test("A 离开详情页后回来（remount）→ 重新读取 bridge，不依赖 server version", async ({
 			page: pageA,
 			context,
