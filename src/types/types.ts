@@ -456,6 +456,9 @@ export interface GameSession {
 	end_time?: number;
 	duration?: number; // 分钟
 	date: string;
+	external_id?: string | null;
+	device?: string | null;
+	duration_seconds?: number | null;
 }
 
 /**

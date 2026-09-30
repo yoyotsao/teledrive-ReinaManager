@@ -8,6 +8,7 @@ use sea_orm::*;
 /// 用户设置仓库
 pub struct SettingsRepository;
 
+#[allow(async_fn_in_trait)]
 pub trait DbSettingsExt {
     /// 获取设置模型，并自动处理好错误转换
     async fn get_settings(&self) -> Result<Model, String>;

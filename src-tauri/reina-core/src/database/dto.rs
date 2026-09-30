@@ -9,6 +9,17 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
 
+/// bridge 送入服务器的已结束会话记录。
+#[derive(Debug, Clone, Deserialize)]
+pub struct BridgeSessionInput {
+    pub id: String,
+    pub game_id: i32,
+    pub device: String,
+    pub start: i32,
+    pub end: i32,
+    pub seconds: i32,
+}
+
 /// 辅助函数：支持 Option<Option<T>> 的反序列化
 /// 用于区分"未提供字段"和"显式设为 null"
 fn double_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>

@@ -14,6 +14,9 @@ pub struct Model {
     pub duration: i32,
     #[sea_orm(column_type = "Text")]
     pub date: String,
+    pub external_id: Option<String>,
+    pub device: Option<String>,
+    pub duration_seconds: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

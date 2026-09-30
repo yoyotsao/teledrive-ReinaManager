@@ -1,3 +1,4 @@
+use crate::database::dto::BridgeSessionInput;
 use crate::entity::prelude::*;
 use crate::entity::{game_sessions, game_statistics};
 use chrono::{Datelike, Local, LocalResult, NaiveDate, NaiveTime, TimeZone, Timelike};
@@ -41,6 +42,12 @@ pub struct StatisticsDistribution {
 
 fn custom_error(message: impl Into<String>) -> DbErr {
     DbErr::Custom(message.into())
+}
+
+/// 将精确秒数按桌面版规则转换为兼容统计栏位使用的分钟数。
+pub fn round_seconds_to_minutes(seconds: u64) -> Result<i32, DbErr> {
+    let minutes = seconds / 60 + u64::from(seconds % 60 >= 30);
+    i32::try_from(minutes).map_err(|_| custom_error("分钟数超出 i32 范围"))
 }
 
 fn timestamp_in_timezone<Tz: TimeZone>(
@@ -175,11 +182,17 @@ fn session_statistics_contribution<Tz: TimeZone>(
     session: &game_sessions::Model,
     timezone: &Tz,
 ) -> Result<SessionStatisticsContribution, DbErr> {
-    if session.start_time <= 0 || session.end_time <= session.start_time {
+    if session.start_time < 0 || session.end_time < session.start_time {
         return Err(custom_error("会话起止时间无效"));
     }
-    if session.duration <= 0 {
-        return Err(custom_error("会话时长必须大于零"));
+    if session.duration < 0 {
+        return Err(custom_error("会话时长不能为负数"));
+    }
+    if session.duration == 0 {
+        return Ok(SessionStatisticsContribution {
+            duration: 0,
+            daily_stats: Vec::new(),
+        });
     }
 
     let start = timestamp_in_timezone(timezone, session.start_time)?;
@@ -197,7 +210,7 @@ fn session_statistics_contribution<Tz: TimeZone>(
         });
     }
 
-    let total_seconds = i128::from(session.end_time - session.start_time);
+    let total_seconds = i128::from(session.end_time) - i128::from(session.start_time);
     let mut current_date = start_date;
     let mut allocated_minutes = 0;
     let mut daily_stats = Vec::new();
@@ -406,6 +419,123 @@ fn projection_from_model(
 /// 游戏统计仓库
 pub struct GameStatsRepository;
 
+#[derive(Debug)]
+pub enum BridgeSessionError {
+    InvalidInput(String),
+    GameNotFound,
+    Database(DbErr),
+}
+
+fn is_external_id_conflict(error: &DbErr) -> bool {
+    matches!(
+        error.sql_err(),
+        Some(SqlErr::UniqueConstraintViolation(message))
+            if message.contains("game_sessions.external_id")
+    )
+}
+
+fn valid_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+}
+
+/// 在调用方 transaction 内写入 bridge 会话；唯一索引负责并发重送的最终裁决。
+pub async fn insert_bridge_session_in_connection<C>(
+    db: &C,
+    record: BridgeSessionInput,
+) -> Result<bool, BridgeSessionError>
+where
+    C: ConnectionTrait,
+{
+    if !valid_uuid(&record.id) {
+        return Err(BridgeSessionError::InvalidInput(
+            "会话 ID 必须是 UUID".to_string(),
+        ));
+    }
+    if record.game_id <= 0 {
+        return Err(BridgeSessionError::InvalidInput(
+            "游戏 ID 必须大于零".to_string(),
+        ));
+    }
+    if record.device.trim().is_empty() {
+        return Err(BridgeSessionError::InvalidInput(
+            "设备名称不能为空".to_string(),
+        ));
+    }
+    if record.seconds < 0 {
+        return Err(BridgeSessionError::InvalidInput(
+            "会话秒数不能为负数".to_string(),
+        ));
+    }
+    if record.start < 0 || record.end < record.start {
+        return Err(BridgeSessionError::InvalidInput(
+            "会话起止时间无效".to_string(),
+        ));
+    }
+    timestamp_in_timezone(&chrono::Utc, record.start)
+        .map_err(|error| BridgeSessionError::InvalidInput(error.to_string()))?;
+    timestamp_in_timezone(&chrono::Utc, record.end)
+        .map_err(|error| BridgeSessionError::InvalidInput(error.to_string()))?;
+    let minutes = round_seconds_to_minutes(record.seconds as u64)
+        .map_err(|error| BridgeSessionError::InvalidInput(error.to_string()))?;
+
+    let game_exists = Games::find_by_id(record.game_id)
+        .one(db)
+        .await
+        .map_err(BridgeSessionError::Database)?
+        .is_some();
+    if !game_exists {
+        return Err(BridgeSessionError::GameNotFound);
+    }
+
+    let date = local_date_from_timestamp(record.end)
+        .map_err(|error| BridgeSessionError::InvalidInput(error.to_string()))?;
+    let session = game_sessions::ActiveModel {
+        session_id: NotSet,
+        game_id: Set(record.game_id),
+        start_time: Set(record.start),
+        end_time: Set(record.end),
+        duration: Set(minutes),
+        date: Set(date),
+        external_id: Set(Some(record.id)),
+        device: Set(Some(record.device)),
+        duration_seconds: Set(Some(record.seconds)),
+    }
+    .insert(db)
+    .await;
+    let session = match session {
+        Ok(session) => session,
+        Err(error) if is_external_id_conflict(&error) => return Ok(false),
+        Err(error) => return Err(BridgeSessionError::Database(error)),
+    };
+
+    let projection = match GameStatsRepository::get_projection(db, record.game_id).await {
+        Ok(Some(mut projection)) => {
+            if apply_session_insert(&mut projection, &session, &Local).is_ok() {
+                projection
+            } else {
+                GameStatsRepository::calculate_projection(db, record.game_id)
+                    .await
+                    .map_err(BridgeSessionError::Database)?
+            }
+        }
+        Ok(None) => GameStatsRepository::calculate_projection(db, record.game_id)
+            .await
+            .map_err(BridgeSessionError::Database)?,
+        Err(error) => return Err(BridgeSessionError::Database(error)),
+    };
+    GameStatsRepository::upsert_projection(db, record.game_id, projection)
+        .await
+        .map_err(BridgeSessionError::Database)?;
+    Ok(true)
+}
+
 impl GameStatsRepository {
     // ==================== 游戏会话操作 ====================
 
@@ -427,6 +557,9 @@ impl GameStatsRepository {
             end_time: Set(end_time),
             duration: Set(duration),
             date: Set(date),
+            external_id: Set(None),
+            device: Set(None),
+            duration_seconds: Set(None),
         }
         .insert(db)
         .await
@@ -788,6 +921,9 @@ mod tests {
             end_time,
             duration,
             date: "2026-01-01".to_string(),
+            external_id: None,
+            device: None,
+            duration_seconds: None,
         }
     }
 
@@ -814,6 +950,9 @@ mod tests {
                 end_time INTEGER NOT NULL,
                 duration INTEGER NOT NULL,
                 date TEXT NOT NULL,
+                external_id TEXT,
+                device TEXT,
+                duration_seconds INTEGER,
                 FOREIGN KEY(game_id) REFERENCES games(id) ON DELETE CASCADE
             )"#,
         )
@@ -854,6 +993,44 @@ mod tests {
                 playtime: 90,
             }]
         );
+    }
+
+    #[test]
+    fn rounds_seconds_to_minutes_using_desktop_rule() {
+        for (seconds, minutes) in [
+            (0, 0),
+            (1, 0),
+            (29, 0),
+            (30, 1),
+            (59, 1),
+            (60, 1),
+            (89, 1),
+            (90, 2),
+        ] {
+            assert_eq!(round_seconds_to_minutes(seconds).unwrap(), minutes);
+        }
+        assert!(round_seconds_to_minutes(u64::MAX).is_err());
+    }
+
+    #[test]
+    fn zero_minute_session_counts_without_creating_daily_zero_entry() {
+        let zero = session(1, timestamp(1, 10), timestamp(1, 10), 0);
+        let contribution = session_statistics_contribution(&zero, &timezone()).unwrap();
+        let mut projection = StatisticsProjection {
+            total_time: 0,
+            session_count: 0,
+            last_played: None,
+            daily_stats: Vec::new(),
+        };
+
+        apply_session_insert(&mut projection, &zero, &timezone()).unwrap();
+
+        assert_eq!(contribution.duration, 0);
+        assert!(contribution.daily_stats.is_empty());
+        assert_eq!(projection.total_time, 0);
+        assert_eq!(projection.session_count, 1);
+        assert_eq!(projection.last_played, Some(zero.end_time));
+        assert!(projection.daily_stats.is_empty());
     }
 
     #[test]
@@ -1080,6 +1257,38 @@ mod tests {
             .expect("统计查询应成功")
             .expect("统计记录应保留");
 
+        assert_eq!(statistics.total_time, Some(0));
+        assert_eq!(statistics.session_count, Some(0));
+        assert_eq!(statistics.last_played, None);
+        assert_eq!(statistics.daily_stats.as_deref(), Some("[]"));
+    }
+
+    #[tokio::test]
+    async fn zero_minute_session_can_be_deleted_without_daily_stats_drift() {
+        let db = test_database().await;
+        let end_time = timestamp(1, 10);
+        let inserted =
+            GameStatsRepository::record_session_with_statistics(&db, 1, end_time, end_time, 0)
+                .await
+                .expect("零分钟 bridge 会话应可记录");
+        let statistics = GameStatistics::find_by_id(1)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(statistics.total_time, Some(0));
+        assert_eq!(statistics.session_count, Some(1));
+        assert_eq!(statistics.last_played, Some(end_time));
+        assert_eq!(statistics.daily_stats.as_deref(), Some("[]"));
+
+        GameStatsRepository::delete_session_with_statistics(&db, inserted.session_id)
+            .await
+            .expect("零分钟会话应可删除");
+        let statistics = GameStatistics::find_by_id(1)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(statistics.total_time, Some(0));
         assert_eq!(statistics.session_count, Some(0));
         assert_eq!(statistics.last_played, None);

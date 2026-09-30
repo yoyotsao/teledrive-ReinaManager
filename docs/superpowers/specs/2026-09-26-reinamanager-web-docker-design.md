@@ -119,7 +119,9 @@ teledrive-webdav bridge（每台電腦各一個）
   - 原本的 `/rpc/fetch-local` 輸出格式和下載位置不變，Explorer 右鍵選單照常使用。唯一的行為變動是修正大寫 `.ZIP` 無法解析的問題（見 3.3），這對 Explorer 也是修正。
 
 ### 3.3 下載／執行按鈕
-頁面載入時，前端呼叫 `GET http://127.0.0.1:8081/rpc/game/state?paths=<teledrive_path>,…`，一次查詢多個遊戲。
+頁面載入時，前端呼叫 `GET http://127.0.0.1:8081/rpc/game/state?paths=game%2FA&paths=game%2FB`，以重複 `paths` 參數查詢多個遊戲，保留名稱中的逗號與 Unicode。
+
+每個 `games[]` 狀態項目可附帶 `capabilities`，例如 `{"locale_emulator": true}`；它描述該遊戲所在 bridge 可用的選項，不是整個回應的全域欄位。
 
 | 狀態 | 判定條件 | 按鈕 |
 |---|---|---|
@@ -246,7 +248,8 @@ teledrive-webdav bridge（每台電腦各一個）
 | exe 不存在，或不在遊戲目錄內 | 回 409，前端提示「重新選擇執行檔」。 |
 | 中繼資料來源逾時或被限速 | 伺服器端依來源限速，前端顯示部分結果。 |
 | reina-server 或 TeleDrive 無法連線 | 前端顯示離線狀態。遊玩紀錄留在 bridge 的佇列裡，恢復後補送。 |
-| JWT 過期、無效或不是本人 | reina-server 回 401 或 403，bridge 回 401，前端導回 TeleDrive 登入。 |
+| JWT 過期或簽章無效 | reina-server 與 bridge 回 401，前端導回 TeleDrive 登入。 |
+| JWT 有效但帳號不是設定的擁有者 | reina-server 與 bridge 回 403。 |
 | CORS 的 Origin 不符 | bridge 不回傳 CORS 標頭，`/rpc/game/*` 回 403。 |
 
 ## 5. 部署

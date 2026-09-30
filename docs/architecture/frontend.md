@@ -43,6 +43,8 @@
 
 `src/providers/queryClient.ts` 将本地事实默认视为长期 fresh，远程查询可使用单独的时效配置。Zustand `persist` 只保存选定偏好，并通过 `appStoreMigrations.ts` 迁移。不要将数据库实体复制到 Zustand 形成第二事实源。
 
+网页版统计也属于 `["server", ...]` 资料。bridge 结束运行会话时立即检查 `data_version`；如果会话仍在本机队列，前景的 60 秒版本轮询会在服务器接受后刷新统计。桌面端仍由 Tauri 会话结束事件刷新本机统计。
+
 网页版 TeleDrive 游戏通过 `useBridgeGames` 查询本机 bridge，使用独立的 `['bridge', ...]` Query namespace，不放进服务器资料版本前缀。bridge 查询显式使用即时过期策略：挂载、窗口聚焦、网络重连时重读；下载中每 2 秒、运行中每 10 秒轮询，页面置于背景或没有活跃工作时停止固定轮询。HTTP 仍经 `authenticatedFetch`，业务操作由 `useGameLaunchFlow` 编排，组件只消费 hook 状态。
 
 全库统计页复用 `useAllGameStatistics` 的共享 Query，并与 `GameIndex` 中的展示游戏按 ID 关联。概览、排行和趋势在页面私有纯函数中按日期范围派生；24 小时与星期分布通过独立 Query 将当前可见游戏 ID 和日期范围交给后端聚合。统计读取失败必须保留 Query 错误态，不能转换为空数据。

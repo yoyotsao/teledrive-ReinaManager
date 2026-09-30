@@ -21,6 +21,7 @@ mod m20260801_000017_add_tasks;
 mod m20260805_000018_hikarinagi_oauth;
 mod m20260809_000019_add_steam_launch;
 mod m20260926_000020_web_library;
+mod m20260926_000021_bridge_sessions;
 
 pub struct Migrator;
 
@@ -48,6 +49,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260805_000018_hikarinagi_oauth::Migration),
             Box::new(m20260809_000019_add_steam_launch::Migration),
             Box::new(m20260926_000020_web_library::Migration),
+            Box::new(m20260926_000021_bridge_sessions::Migration),
         ]
     }
 }

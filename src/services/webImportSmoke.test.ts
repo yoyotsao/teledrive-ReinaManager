@@ -10,5 +10,9 @@ describe("网页版模块载入", () => {
 		await expect(
 			import("@/pages/Detail/game-info/GameInfoEdit"),
 		).resolves.toBeDefined();
-	});
+		const gameStats = await import("@/services/game/gameStats");
+		await expect(gameStats.initGameTimeTracking()).resolves.toBeTypeOf(
+			"function",
+		);
+	}, 15_000);
 });

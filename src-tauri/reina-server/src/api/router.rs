@@ -3,13 +3,14 @@
 use axum::Router;
 use axum::routing::{any, get, post};
 
-use crate::api::{covers, metadata, rpc, scan, version};
+use crate::api::{covers, metadata, rpc, scan, sessions, version};
 use crate::app::AppState;
 use crate::error::ApiError;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/version", get(version::get_version))
+        .route("/sessions", post(sessions::create_session))
         .route("/rpc/{command}", post(rpc::call))
         .merge(covers::handlers::routes())
         .merge(metadata::handlers::routes())

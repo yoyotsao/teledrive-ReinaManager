@@ -635,7 +635,7 @@ class GameLauncher:
     ) -> RunningSession: ...
 ~~~
 
-- [ ] **Step 1: 建立 ProcessAdapter 與 fake clock 測試 seam**
+- [x] **Step 1: 建立 ProcessAdapter 與 fake clock 測試 seam**
 
 不要把 psutil 呼叫散在 business logic。定義 adapter 至少能：
 - snapshot all processes。
@@ -646,7 +646,7 @@ class GameLauncher:
 
 測試不啟動真遊戲即可涵蓋程序樹切換。
 
-- [ ] **Step 2: path safety 與 exe enumeration 先寫失敗測試**
+- [x] **Step 2: path safety 與 exe enumeration 先寫失敗測試**
 
 <code>list_exes(path)</code>：
 - path 必須 resolve 到 ready game root。
@@ -663,7 +663,7 @@ launch 拒絕：
 
 用 <code>Path.resolve()</code> 後再以 <code>os.path.commonpath</code> 檢查 containment；Windows 比較須大小寫不敏感。
 
-- [ ] **Step 3: 啟動不使用 shell，也不做 runas**
+- [x] **Step 3: 啟動不使用 shell，也不做 runas**
 
 Normal：
 
@@ -681,7 +681,7 @@ Web 版明確不實作桌面 <code>ShellExecuteExW("runas")</code> fallback，�
 
 在 <code>requirements.txt</code> 增加 psutil，版本依當前 Python 相容測試鎖定，不順便升級其他套件。
 
-- [ ] **Step 4: 程序追蹤不能依賴父程序一直活著**
+- [x] **Step 4: 程序追蹤不能依賴父程序一直活著**
 
 每 2 秒拿一次 process snapshot，集合來源：
 1. 目前 session 已知 PID 且 create_time 相同。
@@ -698,7 +698,7 @@ launcher 可能在下一次 poll 前退出，因此第 3 項不是只用於 rest
 
 同一 ProcessRef 不可同時被兩個 RunningSession claim；以 session start/root 與既有 claim map 做 deterministic ownership。
 
-- [ ] **Step 5: launch 成功邊界在 durable initial save 之後**
+- [x] **Step 5: launch 成功邊界在 durable initial save 之後**
 
 順序：
 1. resolve root/exe。
@@ -716,7 +716,7 @@ launcher 可能在下一次 poll 前退出，因此第 3 項不是只用於 rest
 
 這個例外比偷偷回成功更安全；後續可由 root recovery 掃描診斷，但不能假裝 durable guarantee 已成立。
 
-- [ ] **Step 6: 接 exes/launch RPC 與 state running provider**
+- [x] **Step 6: 接 exes/launch RPC 與 state running provider**
 
 GameRpc：
 - GET exes。
@@ -730,7 +730,7 @@ Run:
 .venv\Scripts\python.exe -m pytest tests/test_game_launch.py tests/test_game_fetch.py tests/test_game_rpc.py -q
 ~~~
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 Commit（bridge repo）：
 
@@ -769,7 +769,7 @@ Files:
 - <code>cfg.cache_dir / "playtime-running.json"</code>
 - <code>cfg.cache_dir / "playtime-queue.jsonl"</code>
 
-- [ ] **Step 1: 用故障注入測試鎖住 write ordering**
+- [x] **Step 1: 用故障注入測試鎖住 write ordering**
 
 Running store：
 - 啟動時一次讀取 <code>playtime-running.json</code> 成為單一 in-memory <code>dict[session_id, RunningSession]</code>。
@@ -802,7 +802,7 @@ queue.append(record) + fsync
 - session A <code>remove()</code> 與 session B <code>save()</code> 交錯時，A 消失、B 保留，不能由最後一個 snapshot writer 把另一個 mutation 蓋掉。
 - 高次數 parallel save/remove 後，磁碟 JSON 與 store in-memory snapshot 一致。
 
-- [ ] **Step 2: ack rewrite 與 concurrent append 使用同一把鎖**
+- [x] **Step 2: ack rewrite 與 concurrent append 使用同一把鎖**
 
 <code>ack(id)</code>：
 1. lock。
@@ -827,7 +827,7 @@ JSONL 修復必須在 <code>recover_sessions()</code>、sender、HTTP 啟動前�
 - 合法 JSON 但缺換行的尾段必須保留並補換行；同 session recovery 不重複 append。
 - 中間壞行時 recovery 不刪 running，append/ack 都拒絕改檔；repair 與 concurrent append/ack 不互相覆寫。
 
-- [ ] **Step 3: recover_sessions 的三段策略**
+- [x] **Step 3: recover_sessions 的三段策略**
 
 先確認 queue 初始化修復成功，再處理每筆 running；修復失敗不得繼續恢復刪除流程：
 
@@ -845,7 +845,7 @@ PID 相同但 create_time 不同視為 dead，不能 attach。
 - bridge 12:00 last_seen、遊戲 13:00 結束、bridge 14:00 才回來 → end=12:00。
 - bridge 12:00 crash、遊戲 14:00 restart 時仍活 → 沿用原 start，最後結束時計入停機期間。
 
-- [ ] **Step 4: sender 使用 bridge own JWT，不使用 browser token**
+- [x] **Step 4: sender 使用 bridge own JWT，不使用 browser token**
 
 目標：
 
@@ -869,7 +869,7 @@ status：
 
 sender thread 關閉時不需等 queue 清空；durable queue 就是設計的 recovery。
 
-- [ ] **Step 5: bridge startup/shutdown 接入順序**
+- [x] **Step 5: bridge startup/shutdown 接入順序**
 
 main：
 1. api/pool 啟動。
@@ -886,7 +886,7 @@ shutdown：
 - 不把未送 queue 當 error 刪除。
 - 再 stop pool。
 
-- [ ] **Step 6: 全 bridge regression**
+- [x] **Step 6: 全 bridge regression**
 
 Run:
 
@@ -895,7 +895,7 @@ Run:
 .venv\Scripts\python.exe -m pytest tests -q
 ~~~
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 Commit（bridge repo）：
 
@@ -965,7 +965,7 @@ where
 
 <code>true</code> = inserted；<code>false</code> = external UUID 已存在。
 
-- [ ] **Step 1: migration/entity 測試先失敗**
+- [x] **Step 1: migration/entity 測試先失敗**
 
 測試新空庫：
 - 欄位存在。
@@ -979,7 +979,7 @@ where
 cargo test --manifest-path src-tauri/Cargo.toml -p reina-core
 ~~~
 
-- [ ] **Step 2: 抽出共用秒→分鐘 helper，對齊 desktop 規則**
+- [x] **Step 2: 抽出共用秒→分鐘 helper，對齊 desktop 規則**
 
 目前 desktop <code>monitor/session.rs</code> 已使用：
 
@@ -1007,7 +1007,7 @@ desktop monitor 改用它，刪除本地 duplicate helper。
 
 bridge session **不套** desktop <code>MIN_SESSION_SECONDS=60</code>，所以 1 秒、30 秒、59 秒都會存 exact seconds；只有 compatibility minutes 依上述規則。
 
-- [ ] **Step 3: 讓統計投影能處理合法 0-minute session**
+- [x] **Step 3: 讓統計投影能處理合法 0-minute session**
 
 現有 <code>session_statistics_contribution</code> 對 <code>duration &lt;= 0</code> 與 <code>end &lt;= start</code> 會拒絕。為 bridge crash recovery：
 - 改成拒絕 <code>duration &lt; 0</code>。
@@ -1020,7 +1020,7 @@ bridge session **不套** desktop <code>MIN_SESSION_SECONDS=60</code>，所以 1
 
 手動 session API 仍維持「duration 必須 >0」；desktop monitor 仍維持 <60 秒不建立 session。只有 bridge ingestion 放寬。
 
-- [ ] **Step 4: repository 做 UUID idempotency，不能 check-then-insert 無 unique 保護**
+- [x] **Step 4: repository 做 UUID idempotency，不能 check-then-insert 無 unique 保護**
 
 流程：
 1. 驗證 UUID 格式、game_id 合法、device 非空、seconds ≥0、end ≥ start，以及時間戳/分鐘投影可表示；失敗回 <code>BridgeSessionError::InvalidInput</code>。
@@ -1037,7 +1037,7 @@ bridge session **不套** desktop <code>MIN_SESSION_SECONDS=60</code>，所以 1
 - session_count 1。
 - total minutes 只加一次。
 
-- [ ] **Step 5: <code>POST /game/api/sessions</code> 使用既有 auth + tx boundary**
+- [x] **Step 5: <code>POST /game/api/sessions</code> 使用既有 auth + tx boundary**
 
 API：
 - auth 與其他 <code>/game/api</code> 一致。
@@ -1070,7 +1070,7 @@ repository boundary 使用明確的 <code>BridgeSessionError</code>，HTTP handl
 
 HTTP 整合測試必須斷言 status 與 error code：malformed JSON、錯誤欄位型別、非法 UUID、空 device、負 seconds、end < start → 400 / <code>invalid_arguments</code>；格式合法但 game 已刪除 → 404 / <code>not_found</code>；真正 DB error 與 commit fault → 500 / <code>command_failed</code>。所有失敗均不新增 session、不改 statistics/version；同 UUID 重送仍為 200 accepted=false。bridge sender 測試以 404 / <code>not_found</code> 驗證 deleted-game 長退避且保留 queue，不把任意 route 404 誤認為遊戲被刪除。
 
-- [ ] **Step 6: Web 統計不再依賴 Tauri event 才刷新**
+- [x] **Step 6: Web 統計不再依賴 Tauri event 才刷新**
 
 目前 <code>src/services/game/gameStats.ts</code> 會註冊 <code>game-session-ended</code> Tauri event。保持 desktop 行為，但 Web：
 - 不要求本機 Tauri event。
@@ -1085,7 +1085,7 @@ TS <code>GameSession</code> 可追加：
 - <code>device?: string | null</code>
 - <code>duration_seconds?: number | null</code>
 
-- [ ] **Step 7: 完整 server/core regression**
+- [x] **Step 7: 完整 server/core regression**
 
 Run:
 
@@ -1100,7 +1100,7 @@ pnpm build
 pnpm build:web
 ~~~
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 Commit（ReinaManager）：
 
