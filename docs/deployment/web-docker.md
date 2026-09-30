@@ -56,17 +56,81 @@ docker build -t reinamanager:local .
 
 ### 部署步骤
 
-1. 构建候选镜像 `reinamanager:local` 并先做离线检查（`docker compose run` 一律 `--no-deps`，不能让候选实例提前挂载正式 `reina-data`）。
-2. 在替换前，从**当前运行容器**的不可变镜像 ID 打回滚 tag（不要从会移动的 `reinamanager:local` 复制）：
+以下均在 WSL 的 TeleDrive 部署目录（`~/teledrive`）执行。生产 frontend/backend/cloudflared 正在运行：不要对它们做 `down`/`restart`，只按下面的顺序替换。不要打印 `.env`，也不要用不带 `--no-interpolate` 的 `docker compose config`（会展开并输出密钥）。
+
+0. **先**把 `REINA_OWNER_ID=<owner 的 Telegram user id>` 写进 `~/teledrive/.env`，**然后**才 checkout/merge `feat/game-proxy`。该分支的 compose 对 `REINA_OWNER_ID` 有 `:?` 守卫，缺值时所有 compose 命令（包括回滚）都会失败。记下当前分支/提交，回滚要用：
 
    ```text
-   docker inspect --format '{{.Image}}' <当前 reinamanager 容器>
-   docker tag <上一步得到的 image ID> reinamanager:rollback-<日期>
+   git -C ~/teledrive rev-parse --abbrev-ref HEAD   # 部署前的分支
+   git -C ~/teledrive rev-parse HEAD
    ```
 
-3. 备份 `reina-data`（见下）。
-4. 在 TeleDrive 部署目录重建/重启 `reinamanager` 服务与 nginx；等待 `/game/healthz` 健康。
-5. 出问题时：把 compose 使用的镜像重新指向回滚 tag 并重启 `reinamanager`。schema 迁移只向前，回滚旧镜像前若新版本已迁移过数据库，应同时恢复部署前的备份。
+1. 记录部署前状态，不含密钥：
+
+   ```text
+   docker compose config --no-interpolate | sha256sum
+   docker ps --format '{{.Names}}	{{.Image}}	{{.Status}}'
+   ```
+
+2. 从**正在运行的容器**的不可变镜像 ID 打回滚 tag（不要从会移动的 `:latest`/`:local` 复制）。`docker compose build frontend` 会重打 `teledrive-frontend:latest`，所以 frontend 必须先打 tag：
+
+   ```text
+   docker tag "$(docker inspect --format '{{.Image}}' teledrive-frontend-1)" teledrive-frontend:pre-game-rollout
+   # 只有已存在 reinamanager 容器时才有旧镜像；首次部署则记录「no previous reina image」
+   docker tag "$(docker inspect --format '{{.Image}}' teledrive-reinamanager-1)" reinamanager:rollback-$(date +%Y%m%d)
+   ```
+
+3. 构建并验证候选镜像（与 compose 使用同一个 Docker 引擎），验证时 `docker compose run` 一律 `--no-deps`，不挂载正式 `reina-data`：
+
+   ```text
+   docker build -t reinamanager:local <ReinaManager 源码目录>
+   ```
+
+4. 备份 `reina-data`（若卷已有数据；首次部署卷为空可略过）。先停 `reinamanager` 服务，再打包：
+
+   ```text
+   docker compose stop reinamanager
+   docker run --rm -v teledrive_reina-data:/data -v "$PWD":/b debian:bookworm-slim      tar czf /b/reina-$(date +%Y%m%d).tgz -C /data .
+   ```
+
+5. 先启动 Reina，再动 frontend：
+
+   ```text
+   docker compose up -d reinamanager
+   docker compose ps reinamanager                 # 等到 healthy
+   docker compose exec reinamanager date +%Z      # 时区冒烟：应为 CST（Asia/Taipei）
+   ```
+
+6. 重建并替换 frontend（nginx 已含 `/game/` 与 Reina 安全响应头）：
+
+   ```text
+   docker compose build frontend
+   docker compose up -d frontend
+   ```
+
+   cloudflared 使用 `network_mode: service:frontend`，frontend 被重建后它必须一并重建/重新附着：`docker compose ps` 确认 cloudflared 为新容器且 Up，`docker compose logs --tail 50 cloudflared` 确认没有反复重连（若仍附着在旧网络命名空间，执行 `docker compose up -d cloudflared`）。
+
+7. **先**做根站回归，再做任何 `/game` 验收：`/` 返回 TeleDrive 页面且 CSP 的 `connect-src` 不含 `127.0.0.1`；`/api/v1` 正常；`/sw.js` 的 `Cache-Control` 未变。然后检查 `/game`（308 且 `Location: /game/`，相对路径）、`/game/`（单条 CSP，含 `http://127.0.0.1:8081`）、`/game/api/xxx`（JSON 404）。
+
+### 回滚
+
+- **frontend**（`/game` 或根站异常）：把回滚 tag 放回 compose 使用的镜像名，不重新构建，并切回部署前的 TeleDrive 分支，避免之后的 build 再次带入 `/game`：
+
+  ```text
+  docker tag teledrive-frontend:pre-game-rollout teledrive-frontend:latest   # 镜像名以 `docker compose images frontend` 为准
+  docker compose up -d --no-build frontend
+  git -C ~/teledrive checkout <部署前记录的分支>
+  ```
+
+  此后 compose 文件已回到旧版，不再有 `REINA_OWNER_ID` 守卫；`.env` 里多出的该变量无害。cloudflared 同样要确认已重新附着。
+- **reinamanager**：
+
+  ```text
+  docker tag <回滚 tag 或镜像 ID> reinamanager:local
+  docker compose up -d --force-recreate reinamanager
+  ```
+
+  schema 迁移只向前：若新版本已迁移过数据库，还要停服务后把部署前的备份还原到卷（`tar xzf` 反向写回 `/data`，先清空卷内旧文件）。首次部署没有旧镜像时，回滚就是 `docker compose stop reinamanager`（根站不受影响，`/game` 返回 502）。
 
 重启 bridge 是另一件事：见 bridge 文档，只用既有 `restart.bat`，重启前先看 `/rpc/status`，不要杀 rclone 或下载进程。
 
@@ -95,6 +159,13 @@ docker build -t reinamanager:local .
 ## 自动化测试
 
 `pnpm test:e2e` 会先执行 `pnpm build:web`，再用 Playwright 对隔离的临时数据目录、测试专用 JWT 和 fake bridge 跑一遍；fake bridge 监听临时端口，浏览器通过路由转发到 `http://127.0.0.1:8081`。它不接触正式 DB，也不能取代真实 bridge 与实体手机验收（尚未完成）。
+
+运行前提：
+
+- `pnpm exec playwright install chromium`
+- Docker（同一引擎里有从当前 HEAD 构建的 `reinamanager:local`，时区用例 `stats-timezone` 会用它）
+- cargo 工具链（e2e 会编译 `reina-server`）
+- Node >= 22.13（使用 `node:sqlite`）
 
 ## 常见问题
 
