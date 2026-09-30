@@ -12,6 +12,7 @@
 		"tauri:dev-cdp": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-cdp.ps1",
 		"typecheck": "tsc -b --noEmit",
 		"test:web": "vitest run",
+		"test:e2e": "pnpm build:web && playwright test",
 		"format": "biome format --write .",
 		"lint": "biome check .",
 		"check": "pnpm run format && pnpm run lint && pnpm run typecheck",
@@ -62,6 +63,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.8",
+		"@playwright/test": "^1.63.0",
 		"@tauri-apps/cli": "~2.11.4",
 		"@testing-library/dom": "10.4.2",
 		"@testing-library/react": "16.3.3",
