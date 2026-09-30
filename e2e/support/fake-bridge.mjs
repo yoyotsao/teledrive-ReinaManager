@@ -231,7 +231,13 @@ export class FakeBridge {
 
 		const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
 		if (!bearer || !verifyJwt(bearer)) {
-			reply(401, { code: "unauthorized", error: "unauthorized" });
+			// 与真 bridge 一致：没带 bearer → bearer_token_required；带了但无效/过期 → invalid_bearer_token
+			reply(
+				401,
+				bearer
+					? { code: "invalid_bearer_token", error: "invalid bearer token" }
+					: { code: "bearer_token_required", error: "bearer token required" },
+			);
 			return;
 		}
 
@@ -275,15 +281,22 @@ export class FakeBridge {
 			if (status === "absent" || status === "incomplete") {
 				this.transition(path, { status: "downloading" });
 			}
-			reply(200, this.#stateOf(path));
+			// 真 bridge：POST /fetch 回 202 Accepted
+			reply(202, this.#stateOf(path));
 			return;
 		}
 		if (action === "fetch" && method === "DELETE") {
 			const path = url.searchParams.get("path") ?? "";
-			if (this.games.get(path)?.status === "downloading") {
-				this.transition(path, { status: "incomplete" });
+			if (this.games.get(path)?.status !== "downloading") {
+				// 真 bridge：没有进行中的下载 → 409 download_not_active
+				reply(409, {
+					code: "download_not_active",
+					error: "download is not active",
+				});
+				return;
 			}
-			reply(200, this.#stateOf(path));
+			this.transition(path, { status: "incomplete" });
+			reply(202, this.#stateOf(path));
 			return;
 		}
 		if (action === "exes" && method === "GET") {

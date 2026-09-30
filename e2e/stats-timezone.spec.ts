@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, type Page, test } from "@playwright/test";
 import { listDbFiles, startCandidateServer } from "./support/docker-env.mjs";
-import { seedCredentials } from "./support/fixtures";
+import { installBridgeRoute, seedCredentials } from "./support/fixtures";
 import { validJwt } from "./support/jwt.mjs";
 
 type Candidate = Awaited<ReturnType<typeof startCandidateServer>>;
@@ -278,6 +278,7 @@ test.describe
 				timezoneId: "Asia/Taipei",
 				locale: "zh-CN",
 			});
+			await installBridgeRoute(context, "none", null);
 			try {
 				await assertUi(await context.newPage());
 			} finally {
@@ -310,6 +311,7 @@ test.describe
 				timezoneId: "Asia/Taipei",
 				locale: "zh-CN",
 			});
+			await installBridgeRoute(context, "none", null);
 			try {
 				await assertUi(await context.newPage());
 			} finally {

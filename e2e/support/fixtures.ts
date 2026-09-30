@@ -33,10 +33,14 @@ export type BridgeMode = "fake" | "none";
 export async function installBridgeRoute(
 	context: BrowserContext,
 	mode: BridgeMode,
-	bridge: FakeBridge,
+	bridge: FakeBridge | null,
 ): Promise<void> {
 	await context.route(`${REAL_BRIDGE_ORIGIN}/**`, async (route) => {
 		if (mode === "none") {
+			await route.abort("connectionrefused");
+			return;
+		}
+		if (!bridge) {
 			await route.abort("connectionrefused");
 			return;
 		}

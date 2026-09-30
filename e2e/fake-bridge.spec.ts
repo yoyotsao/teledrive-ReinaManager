@@ -74,7 +74,7 @@ test.describe("fake bridge（路由到临时端口）", () => {
 		});
 		expect(fetched).toMatchObject({
 			ok: true,
-			status: 200,
+			status: 202,
 			body: { status: "downloading" },
 		});
 
@@ -84,8 +84,17 @@ test.describe("fake bridge（路由到临时端口）", () => {
 		});
 		expect(cancelled).toMatchObject({
 			ok: true,
+			status: 202,
 			body: { status: "incomplete" },
 		});
+
+		// 没有进行中的下载时取消 → 409 download_not_active（同真 bridge）
+		expect(
+			await callBridge(page, "/rpc/game/fetch?path=game%2FB", {
+				method: "DELETE",
+				token,
+			}),
+		).toMatchObject({ status: 409, body: { code: "download_not_active" } });
 
 		const exes = await callBridge(page, "/rpc/game/exes?path=game%2FA", {
 			token,
@@ -125,12 +134,13 @@ test.describe("fake bridge（路由到临时端口）", () => {
 
 		expect(await callBridge(page, "/rpc/game/state?paths=x")).toMatchObject({
 			status: 401,
+			body: { code: "bearer_token_required" },
 		});
 		expect(
 			await callBridge(page, "/rpc/game/state?paths=x", {
 				token: expiredJwt(),
 			}),
-		).toMatchObject({ status: 401 });
+		).toMatchObject({ status: 401, body: { code: "invalid_bearer_token" } });
 
 		bridge.fail({ status: 403 });
 		bridge.fail({
