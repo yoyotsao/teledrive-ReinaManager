@@ -9,13 +9,14 @@ import { validJwt } from "./support/jwt.mjs";
 import { RED_PNG } from "./support/png.mjs";
 
 const POLL_COUNT_REQUIRED = 5;
+const OBSERVE_MS = 300_000;
 
 test("5 分钟无变更：只有固定的 version 轮询", async ({
 	page,
 	baseUrl,
 	server,
 }) => {
-	test.setTimeout(400_000);
+	test.setTimeout(420_000);
 	const id = await server.createGame("Idle-Game");
 	await server.putCover(id, RED_PNG());
 
@@ -53,9 +54,20 @@ test("5 分钟无变更：只有固定的 version 轮询", async ({
 		)
 		.toBeGreaterThanOrEqual(POLL_COUNT_REQUIRED);
 
+	// 继续观察到满 5 分钟（以经过时间的 deadline 判断，不是固定 sleep）
+	await expect
+		.poll(() => Date.now() - startedAt, {
+			timeout: 330_000,
+			intervals: [1_000],
+		})
+		.toBeGreaterThanOrEqual(OBSERVE_MS);
+
 	const elapsed = Date.now() - startedAt;
 	const after = observed.slice(baseline);
-	expect(elapsed).toBeGreaterThanOrEqual(POLL_COUNT_REQUIRED * 60_000 - 65_000);
+	expect(elapsed).toBeGreaterThanOrEqual(OBSERVE_MS);
+	expect(
+		after.filter((entry) => entry.call === "GET /game/api/version").length,
+	).toBeGreaterThanOrEqual(POLL_COUNT_REQUIRED);
 	// 观察期间的每一个 /game/api/* 请求都必须是 version
 	expect(
 		after.filter((entry) => entry.call !== "GET /game/api/version"),
