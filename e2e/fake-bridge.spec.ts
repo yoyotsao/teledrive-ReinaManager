@@ -117,7 +117,7 @@ test.describe("fake bridge（路由到临时端口）", () => {
 		expect(launched).toMatchObject({ ok: true, status: 200 });
 		expect(bridge.games.get("game/A")?.status).toBe("running");
 
-		expect(bridge.requests.length).toBe(5);
+		expect(bridge.requests.length).toBe(6);
 		for (const request of bridge.requests) {
 			expect(request.authorization).toBe(`Bearer ${token}`);
 			expect(request.origin).toBe(baseUrl);
