@@ -183,6 +183,34 @@ export interface ErogameScapeData {
 }
 
 /**
+ * Steam 商店数据结构
+ */
+export interface SteamData {
+	image?: string;
+	name?: string;
+	summary?: string;
+	tags?: string[];
+	developer?: string;
+	nsfw?: boolean;
+	date?: string;
+}
+
+/**
+ * HGameFree（hgamefree.info 下载站文章）数据结构
+ * aliases 存放文章下载链接里的压缩包文件名（不含扩展名），用于按文件名匹配。
+ */
+export interface HgamefreeData {
+	image?: string;
+	name?: string;
+	aliases?: string[];
+	/** 文章里的原始下载链接（k2s 系列与 MEGA），保持文章中的顺序 */
+	file_url?: string[];
+	/** 文章链接到的外部作品 ID：`steam:<app id>`、`getchu:<id>`、`dlsite:RJxxxxxx` */
+	external_ids?: string[];
+	nsfw?: boolean;
+}
+
+/**
  * Hikarinagi 数据结构（JSON 列嵌入 games 表）
  */
 export interface HikarinagiData {
@@ -236,6 +264,8 @@ export const SOURCE_TYPES = [
 	"kun",
 	"dlsite",
 	"erogamescape",
+	"hgamefree",
+	"steam",
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 

@@ -28,7 +28,9 @@ type ApiRateLimitSource =
 	| "kun"
 	| "dlsite"
 	| "erogamescape"
-	| "hikarinagi";
+	| "hikarinagi"
+	| "hgamefree"
+	| "steam";
 
 interface AppErrorOptions {
 	code: AppErrorCode | string;

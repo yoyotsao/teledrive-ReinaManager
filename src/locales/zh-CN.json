@@ -632,6 +632,7 @@
 			"expandTags": "展开标签",
 			"expected_hours": "预计时长",
 			"gameDatafrom": "数据来源",
+			"gameSize": "文件大小",
 			"gameDeveloper": "开发",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "输入别名后按回车添加，退格键删除",

@@ -878,6 +878,37 @@ impl GamesRepository {
             .collect())
     }
 
+    /// 掃描建立的佔位條目只有 `custom` 來源與資料夾名；
+    /// 只要換了資料來源、改過名稱或填了其他自訂欄位，就視為使用者已手動處理。
+    fn has_manual_metadata(model: &games::Model) -> bool {
+        if model.id_type != "custom" {
+            return true;
+        }
+        let Some(custom) = model.custom_data.as_ref() else {
+            return false;
+        };
+        let placeholder = model
+            .teledrive_path
+            .as_deref()
+            .and_then(|path| path.rsplit('/').next())
+            .unwrap_or_default();
+        if custom.name.as_deref().is_some_and(|name| name != placeholder) {
+            return true;
+        }
+        let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(custom) else {
+            return false;
+        };
+        fields.iter().any(|(key, value)| {
+            key != "name"
+                && match value {
+                    serde_json::Value::Null => false,
+                    serde_json::Value::String(text) => !text.is_empty(),
+                    serde_json::Value::Array(items) => !items.is_empty(),
+                    _ => true,
+                }
+        })
+    }
+
     pub async fn find_scan_pending(
         conn: &impl ConnectionTrait,
     ) -> Result<Vec<ScanPendingRow>, DbErr> {
@@ -889,6 +920,8 @@ impl GamesRepository {
 
         Ok(models
             .into_iter()
+            // 使用者已手動補過資料的條目不再算待處理，掃描也不該重跑覆寫
+            .filter(|model| !Self::has_manual_metadata(model))
             .map(|model| ScanPendingRow {
                 id: model.id,
                 name: model

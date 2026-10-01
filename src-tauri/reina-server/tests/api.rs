@@ -54,7 +54,7 @@ async fn 过期_签名错误_算法错误都回_401() {
 }
 
 #[tokio::test]
-async fn 不是拥有者回_403() {
+async fn 任何有效的使用者都可以使用() {
     let app = spawn_app().await;
     let response = app
         .get(
@@ -62,8 +62,21 @@ async fn 不是拥有者回_403() {
             Some(&bearer(&token_for(json!(7), 3600))),
         )
         .await;
-    assert_eq!(response.status, StatusCode::FORBIDDEN);
-    assert_eq!(response.json()["code"], "forbidden");
+    assert_eq!(response.status, StatusCode::OK, "{}", response.text());
+    assert_eq!(response.json(), json!({"data_version": 0}));
+}
+
+#[tokio::test]
+async fn 非正整数的使用者_id_回_401_且不建立目录() {
+    let app = spawn_app().await;
+    for id in [json!(0), json!(-5), json!("0")] {
+        let response = app
+            .get("/game/api/version", Some(&bearer(&token_for(id, 3600))))
+            .await;
+        assert_eq!(response.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(response.json()["code"], "unauthorized");
+    }
+    assert!(!app.data_dir().join("users").exists());
 }
 
 #[tokio::test]

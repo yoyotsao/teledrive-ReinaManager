@@ -632,6 +632,7 @@
 			"expandTags": "展開標籤",
 			"expected_hours": "預計時長",
 			"gameDatafrom": "資料來源",
+			"gameSize": "檔案大小",
 			"gameDeveloper": "開發",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "輸入別名...",

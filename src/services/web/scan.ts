@@ -43,3 +43,11 @@ export async function getScanPending(): Promise<ScanPendingItem[]> {
 		"Scan pending",
 	);
 }
+
+/** 各遊戲 zip 的位元組數，鍵為 `teledrive_path`。 */
+export async function getScanSizes(): Promise<Record<string, number>> {
+	return readJson(
+		await authenticatedFetch(`${import.meta.env.BASE_URL}api/scan/sizes`),
+		"Scan sizes",
+	);
+}

@@ -25,11 +25,13 @@ ReinaManager 网页版以 Docker 服务形式部署在 TeleDrive 的 `/game/` �
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| reina-server（容器） | 静态页面、`/game/api`（游戏库 RPC、封面、元数据代理、云端扫描、游玩记录入库、`data_version`）、SQLite 事实源 | 下载游戏文件、启动本机进程 |
+| reina-server（容器） | 静态页面、`/game/api`（游戏库 RPC、封面、元数据代理、云端扫描、游玩记录入库、`data_version`）、每位使用者各自的 SQLite 事实源 | 下载游戏文件、启动本机进程 |
 | 本机 bridge | 把 TeleDrive 游戏下载到本机、列出可执行文件、启动并追踪进程、记录游玩时长并补送 | 保存游戏库资料；只在本机 loopback 监听 |
 | 浏览器 | 界面、Query 缓存、携带 TeleDrive JWT 调用 server 与 bridge | 保存 bridge 状态到服务器 |
 
-认证：reina-server 与 TeleDrive backend 共享同一个 `JWT_SECRET`（仅容器环境变量，不进前端构建、静态文件或日志）；`REINA_OWNER_ID` 指定唯一 owner，真值只放部署 `.env`，不入库。
+认证：reina-server 与 TeleDrive backend 共享同一个 `JWT_SECRET`（仅容器环境变量，不进前端构建、静态文件或日志）。
+
+多使用者：任何持有有效 TeleDrive JWT 的使用者都可以使用 `/game/`，每个人的游戏库、封面、统计和 `data_version` 完全独立（见[数据与备份](#数据与备份)）。server 只用 JWT 里的 `user_id`（必须是正整数）区分使用者，不再需要、也不再读取 `REINA_OWNER_ID`；旧 `.env` 里残留该变量无害。`REINA_MAX_USERS`（默认 100）限制拥有数据目录的使用者人数，超过后**新**使用者收到 403 `user_limit_reached`，既有使用者不受影响。
 
 没有 bridge（手机、未启动、非 Windows）时页面仍可增删改、扫描、封面；仅下载/执行控制不可用。
 
@@ -52,13 +54,13 @@ Windows 与 WSL 共用同一个 Docker Desktop 引擎，镜像 `reinamanager:loc
 docker build -t reinamanager:local .
 ```
 
-冷构建约 5 分钟，需要网络（有一个 git 形式的 cargo 依赖）。运行时环境变量默认值：`REINA_PORT=8787`、`REINA_DATA_DIR=/data`、`REINA_STATIC_DIR=/app/static`、`TZ=Asia/Taipei`。密钥不是构建参数。
+冷构建约 5 分钟，需要网络（有一个 git 形式的 cargo 依赖）。运行时环境变量默认值：`REINA_PORT=8787`、`REINA_DATA_DIR=/data`、`REINA_STATIC_DIR=/app/static`、`REINA_MAX_USERS=100`、`TZ=Asia/Taipei`。密钥不是构建参数。
 
 ### 部署步骤
 
 以下均在 WSL 的 TeleDrive 部署目录（`~/teledrive`）执行。生产 frontend/backend/cloudflared 正在运行：不要对它们做 `down`/`restart`，只按下面的顺序替换。不要打印 `.env`，也不要用不带 `--no-interpolate` 的 `docker compose config`（会展开并输出密钥）。
 
-0. **先**把 `REINA_OWNER_ID=<owner 的 Telegram user id>` 写进 `~/teledrive/.env`，**然后**才 checkout/merge `feat/game-proxy`。该分支的 compose 对 `REINA_OWNER_ID` 有 `:?` 守卫，缺值时所有 compose 命令（包括回滚）都会失败。记下当前分支/提交，回滚要用：
+0. 不需要为 Reina 新增任何必填的 `.env` 变量（`JWT_SECRET` 已由 backend 使用；`REINA_MAX_USERS` 选填）。checkout/merge `feat/game-proxy` 之前，记下当前分支/提交，回滚要用：
 
    ```text
    git -C ~/teledrive rev-parse --abbrev-ref HEAD   # 部署前的分支
@@ -122,7 +124,7 @@ docker build -t reinamanager:local .
   git -C ~/teledrive checkout <部署前记录的分支>
   ```
 
-  此后 compose 文件已回到旧版，不再有 `REINA_OWNER_ID` 守卫；`.env` 里多出的该变量无害。cloudflared 同样要确认已重新附着。
+  此后 compose 文件已回到旧版，`.env` 里多出的 Reina 相关变量无害。cloudflared 同样要确认已重新附着。
 - **reinamanager**：
 
   ```text
@@ -140,18 +142,33 @@ docker build -t reinamanager:local .
 
 | 路径（容器内） | 内容 |
 | --- | --- |
-| `/data/reina_manager.db` | SQLite 事实源（游戏、合集、统计、设置、`data_version`） |
-| `/data/covers/game_<id>/<sha256>.<ext>` | 封面文件 |
+| `/data/users/<user_id>/reina_manager.db` | 该使用者的 SQLite 事实源（游戏、合集、统计、设置、`data_version`） |
+| `/data/users/<user_id>/covers/game_<id>/<sha256>.<ext>` | 该使用者的封面文件 |
+| `/data/hgamefree.db` | HGameFree 下载站文章索引（全站共用，不属于任何使用者，不计入 `REINA_MAX_USERS`） |
+
+`<user_id>` 是 JWT 里的 TeleDrive 使用者 id（正整数）。使用者第一次带有效 JWT 访问时自动建立目录与数据库，并执行 schema 迁移；每位使用者的 `data_version` 与游戏 id 各自独立（不同使用者可以有相同的游戏 id）。人数上限以磁盘上 `users/` 下的目录数为准，不受服务重启影响。旧版单使用者布局（`/data/reina_manager.db`、`/data/covers/`）不再被读取。
 
 备份要点：
 
 - 数据库与封面要在同一时间点备份；备份前先停止 `reinamanager` 服务，或使用 SQLite 在线备份，避免复制到半写入的文件。运行时镜像不含 `sqlite3` 命令行工具。
 - 恢复时先停服务，再把两者一起放回卷内。
+- 备份仍是整个 `/data` 一次打包。只还原某一位使用者时，停服务后仅还原 `/data/users/<user_id>/` 整个目录（数据库与封面一起），不影响其他人。
+- 磁盘用量没有每人配额，只有 `REINA_MAX_USERS` 限制人数。
 - 不要 bind-mount 源码目录到 runtime；`/data` 是唯一持久化位置。
+
+## HGameFree 文章索引
+
+hgamefree.info 每个请求要 4～5 秒，所以 reina-server 把每篇文章的标题、封面网址、下载压缩包文件名和原始下载链接（`file_url`，k2s 系列与 MEGA）同步到 `/data/hgamefree.db`，`GET /game/api/hgamefree/search` 直接查这张表。
+
+- 启动后立刻同步，之后每 30 分钟按 `modified_after` 增量同步；超过 7 天会重做一次完整同步，才能发现站台上被删除的文章。失败 5 分钟后重试，不影响其他功能。
+- 第一次完整同步约 55 页、5～10 分钟，期间搜索接口回 `ready: false`，前端自动退回站台即时搜索。
+- 除标题、文件名、下载链接外，也记录文章里链接到的外部作品 ID（Steam App ID、Getchu 编号、DLsite RJ 号码），供 `?ext=steam:3329430` 这类反查使用。旧版索引缺少这个字段时，启动会自动补上并触发一次完整重新同步（5～10 分钟，期间搜索仍可用，只是反查暂时查不到）。
+- 索引只存必要字段，不存内文和图片文件；重建只需删除 `/data/hgamefree.db` 并重启服务。
+- 网页版云端扫描用 zip 名称去比对文章的 k2s 文件名（MEGA 链接不含文件名，只能靠标题）。
 
 ## 统计时区
 
-- 统计按日期/小时/星期聚合，server 使用进程本地时区（`chrono::Local`），浏览器统计页使用浏览器本地日期。本次单 owner 部署统一为 `Asia/Taipei`：容器 `TZ=Asia/Taipei`（镜像已安装 `tzdata`），桌面、手机和自动化浏览器也必须使用同一时区。
+- 统计按日期/小时/星期聚合，server 使用进程本地时区（`chrono::Local`），浏览器统计页使用浏览器本地日期。全站（所有使用者）统一为 `Asia/Taipei`：容器 `TZ=Asia/Taipei`（镜像已安装 `tzdata`），桌面、手机和自动化浏览器也必须使用同一时区。不支持不同使用者使用不同时区。
 - 这**不等于**已支持任意时区的浏览器；跨时区使用需要另行统一前后端日期计算。
 - 已有游玩数据后，**不能直接改 `TZ`**：`daily_stats` 等投影是按写入当时的时区落盘的，直接切换会让历史日期与新数据错位。变更时区需要一次从 `game_sessions` 重建统计投影的数据迁移，并在迁移完成前保持原 `TZ`。
 - 首次写入游玩记录之前就必须确认容器 `TZ` 正确；不带 `tzdata` 的容器会静默按 UTC 运行。
@@ -176,10 +193,13 @@ bridge 未启动、浏览器不在装有 bridge 的 Windows 电脑上（如手�
 bridge 只放行 `[reina] allowed_origin` 中配置的那一个 Origin，必须与访问页面的 Origin 完全一致（协议、域名、端口；不接受通配符）；预检会回应 `Access-Control-Allow-Private-Network`。同时检查 `/game/` 响应上的 CSP `connect-src` 是否包含 `http://127.0.0.1:8081`，且响应中只有一条 CSP（两条 CSP 会取交集，仍会拦截）。`allowed_origin` 或 `server_url` 为空时 bridge 的游戏 RPC 整体停用（503 `game_rpc_disabled`）。
 
 **401**
-TeleDrive JWT 过期或无效。网页会刷新一次后重试，仍失败则要求重新登录。bridge 回 401 `invalid_bearer_token`；回 403 `bridge_owner_mismatch` 表示登录用户不是该 bridge 的主 Telegram 账号；回 403 `teledrive_forbidden` 不代表登录失效。bridge 补送游玩记录时若持续 401，说明 reina-server 与 TeleDrive 的 `JWT_SECRET` 或 owner 设置不一致，bridge 会暂停 30 分钟再试。
+TeleDrive JWT 过期或无效。网页会刷新一次后重试，仍失败则要求重新登录。bridge 回 401 `invalid_bearer_token`；回 403 `bridge_owner_mismatch` 表示登录用户不是该 bridge 的主 Telegram 账号；回 403 `teledrive_forbidden` 不代表登录失效。bridge 补送游玩记录时若持续 401，说明 reina-server 与 TeleDrive 的 `JWT_SECRET` 不一致，bridge 会暂停 30 分钟再试。
+
+**403 `user_limit_reached`**
+拥有数据目录的使用者已达 `REINA_MAX_USERS`，这位是新使用者。既有使用者不受影响。调高该变量并重建 `reinamanager` 容器即可放行；不要手工删除 `/data/users/` 下的目录来腾名额，除非确认该使用者的数据不再需要。
 
 **下载不完整（状态 `incomplete`）**
 下载被取消、失败或 bridge 重启中断。没有 `.reina-complete` 标记的目录不会被当作 `ready`，也不能启动。重新点击下载：已存在的文件会跳过续传。失败原因会显示在状态的 `error` 中（已去除凭证与本机路径）。
 
 **游玩时长没有出现（playtime queue pending）**
-这是预期的最终一致：记录先在 bridge 本机 `playtime-queue.jsonl` 排队，server 接受后才会出现，并在其他设备通过 `data_version` 同步。排查：server 是否健康（`/game/healthz`）、bridge 日志是否有 `playtime send deferred`/`retained`、`REINA_OWNER_ID` 与 JWT 是否一致；被永久拒绝的单条（游戏已删除、数据无效）会被搁置而不阻塞后面的记录。不要手工删除队列文件，除非已确认记录不再需要。
+这是预期的最终一致：记录先在 bridge 本机 `playtime-queue.jsonl` 排队，server 接受后才会出现，并在其他设备通过 `data_version` 同步。排查：server 是否健康（`/game/healthz`）、bridge 日志是否有 `playtime send deferred`/`retained`、`JWT_SECRET` 是否与 TeleDrive 一致；被永久拒绝的单条（游戏已删除、数据无效）会被搁置而不阻塞后面的记录。不要手工删除队列文件，除非已确认记录不再需要。

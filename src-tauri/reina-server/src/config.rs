@@ -7,11 +7,12 @@ use std::path::PathBuf;
 #[derive(Clone)]
 pub struct Config {
     pub jwt_secret: String,
-    pub owner_id: i64,
     pub teledrive_api: String,
     pub port: u16,
     pub data_dir: PathBuf,
     pub static_dir: PathBuf,
+    /// 最多允许多少位使用者拥有自己的数据目录；超过后新使用者回 403，既有使用者不受影响。
+    pub max_users: usize,
     /// TeleDrive 根目錄下存放遊戲的資料夾名稱，與 bridge 的 game_folder 設定一致。
     pub game_folder: String,
     /// 测试用：把指定的上游 host 导向本机假服务器。正式环境永远是空的，不从环境变量读取。
@@ -48,10 +49,14 @@ impl Config {
             .filter(|value| !value.is_empty())
             .ok_or_else(|| ConfigError("缺少 JWT_SECRET".to_string()))?;
 
-        let owner_id = optional("REINA_OWNER_ID")
-            .ok_or_else(|| ConfigError("缺少 REINA_OWNER_ID".to_string()))?
-            .parse::<i64>()
-            .map_err(|_| ConfigError("REINA_OWNER_ID 必须是整数".to_string()))?;
+        let max_users = match optional("REINA_MAX_USERS") {
+            Some(value) => value
+                .parse::<usize>()
+                .ok()
+                .filter(|count| *count > 0)
+                .ok_or_else(|| ConfigError("REINA_MAX_USERS 必须是正整数".to_string()))?,
+            None => 100,
+        };
 
         let port = match optional("REINA_PORT") {
             Some(value) => value
@@ -67,7 +72,6 @@ impl Config {
 
         Ok(Self {
             jwt_secret,
-            owner_id,
             teledrive_api,
             port,
             data_dir: optional("REINA_DATA_DIR")
@@ -76,13 +80,10 @@ impl Config {
             static_dir: optional("REINA_STATIC_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("/app/static")),
+            max_users,
             game_folder: optional("REINA_GAME_FOLDER").unwrap_or_else(|| "game".to_string()),
             upstream_overrides: std::collections::HashMap::new(),
         })
-    }
-
-    pub fn db_path(&self) -> PathBuf {
-        self.data_dir.join("reina_manager.db")
     }
 
     /// 单元测试与集成测试共用的固定设定；目录由调用端覆写。
@@ -92,12 +93,12 @@ impl Config {
     pub fn for_tests() -> Self {
         Self {
             jwt_secret: "reina-test-secret".to_string(),
-            owner_id: 42,
             // 测试不会连到 TeleDrive；给一个不会有服务的地址，需要时由测试覆写
             teledrive_api: "http://127.0.0.1:9".to_string(),
             port: 0,
             data_dir: PathBuf::from("/nonexistent/reina-data"),
             static_dir: PathBuf::from("/nonexistent/reina-static"),
+            max_users: 100,
             game_folder: "game".to_string(),
             upstream_overrides: std::collections::HashMap::new(),
         }
@@ -108,11 +109,11 @@ impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("jwt_secret", &"<redacted>")
-            .field("owner_id", &self.owner_id)
             .field("teledrive_api", &self.teledrive_api)
             .field("port", &self.port)
             .field("data_dir", &self.data_dir)
             .field("static_dir", &self.static_dir)
+            .field("max_users", &self.max_users)
             .field("game_folder", &self.game_folder)
             .field("upstream_overrides", &self.upstream_overrides)
             .finish()
@@ -134,31 +135,48 @@ mod tests {
     }
 
     #[test]
-    fn 必填字段齐全时套用预设值() {
-        let config = Config::from_lookup(lookup(&[
-            ("JWT_SECRET", "s3cret"),
-            ("REINA_OWNER_ID", "42"),
-        ]))
-        .unwrap();
+    fn 只需要密钥其余套用预设值() {
+        let config = Config::from_lookup(lookup(&[("JWT_SECRET", "s3cret")])).unwrap();
         assert_eq!(config.jwt_secret, "s3cret");
-        assert_eq!(config.owner_id, 42);
         assert_eq!(config.teledrive_api, "http://backend:8000");
         assert_eq!(config.port, 8787);
         assert_eq!(config.data_dir, PathBuf::from("/data"));
         assert_eq!(config.static_dir, PathBuf::from("/app/static"));
         assert_eq!(config.game_folder, "game");
-        assert_eq!(
-            config.db_path(),
-            PathBuf::from("/data").join("reina_manager.db")
-        );
+        assert_eq!(config.max_users, 100);
         assert!(config.upstream_overrides.is_empty());
+    }
+
+    #[test]
+    fn 已不再需要也不再读取_owner_id() {
+        // 旧部署的 .env 里可能还留着这个变量，必须无害
+        let config = Config::from_lookup(lookup(&[
+            ("JWT_SECRET", "s3cret"),
+            ("REINA_OWNER_ID", "abc"),
+        ]))
+        .unwrap();
+        assert_eq!(config.jwt_secret, "s3cret");
+    }
+
+    #[test]
+    fn 可覆写人数上限而且必须是正整数() {
+        let config =
+            Config::from_lookup(lookup(&[("JWT_SECRET", "s"), ("REINA_MAX_USERS", " 5 ")]))
+                .unwrap();
+        assert_eq!(config.max_users, 5);
+        for bad in ["0", "-1", "abc", "1.5"] {
+            assert!(
+                Config::from_lookup(lookup(&[("JWT_SECRET", "s"), ("REINA_MAX_USERS", bad)]))
+                    .is_err(),
+                "REINA_MAX_USERS={bad} 应该启动失败"
+            );
+        }
     }
 
     #[test]
     fn 可覆写选填字段并去掉网址结尾斜线() {
         let config = Config::from_lookup(lookup(&[
             ("JWT_SECRET", "s3cret"),
-            ("REINA_OWNER_ID", "7"),
             ("TELEDRIVE_API", "http://backend:8000/"),
             ("REINA_PORT", "9000"),
             ("REINA_DATA_DIR", "/tmp/reina"),
@@ -174,41 +192,28 @@ mod tests {
     }
 
     #[test]
-    fn 缺少密钥或拥有者时启动失败() {
-        assert!(Config::from_lookup(lookup(&[("REINA_OWNER_ID", "1")])).is_err());
+    fn 缺少密钥或端口无效时启动失败() {
+        assert!(Config::from_lookup(lookup(&[])).is_err());
         assert!(Config::from_lookup(lookup(&[("JWT_SECRET", "")])).is_err());
-        assert!(Config::from_lookup(lookup(&[("JWT_SECRET", "s")])).is_err());
         assert!(
-            Config::from_lookup(lookup(&[("JWT_SECRET", "s"), ("REINA_OWNER_ID", "abc")])).is_err()
-        );
-        assert!(
-            Config::from_lookup(lookup(&[
-                ("JWT_SECRET", "s"),
-                ("REINA_OWNER_ID", "1"),
-                ("REINA_PORT", "99999"),
-            ]))
-            .is_err()
+            Config::from_lookup(lookup(&[("JWT_SECRET", "s"), ("REINA_PORT", "99999")])).is_err()
         );
     }
 
     #[test]
     fn 密钥原样保留而且调试输出不含密钥() {
-        let config = Config::from_lookup(lookup(&[
-            ("JWT_SECRET", " spaced secret "),
-            ("REINA_OWNER_ID", "1"),
-        ]))
-        .unwrap();
+        let config = Config::from_lookup(lookup(&[("JWT_SECRET", " spaced secret ")])).unwrap();
         // TeleDrive 端不会 trim 密钥，这里也不能 trim，否则签名会对不上
         assert_eq!(config.jwt_secret, " spaced secret ");
         assert!(!format!("{config:?}").contains("spaced secret"));
     }
 
     #[test]
-    fn 测试用设定使用固定的密钥与拥有者() {
-        // tests/support.rs 的 SECRET、OWNER_ID 必须与这里一致
+    fn 测试用设定使用固定的密钥() {
+        // tests/support.rs 的 SECRET 必须与这里一致
         let config = Config::for_tests();
         assert_eq!(config.jwt_secret, "reina-test-secret");
-        assert_eq!(config.owner_id, 42);
+        assert_eq!(config.max_users, 100);
         assert_eq!(config.teledrive_api, "http://127.0.0.1:9");
         assert_eq!(config.port, 0);
     }

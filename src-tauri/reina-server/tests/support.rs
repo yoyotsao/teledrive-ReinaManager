@@ -12,6 +12,7 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reina_core::database::dto::InsertGameData;
 use reina_core::database::repository::games_repository::GamesRepository;
 use reina_server::{AppState, Config, build_router};
+use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -81,10 +82,7 @@ impl TestApp {
             ..Config::for_tests()
         };
         configure(&mut config);
-        let db = reina_core::database::connect_database(&config.db_path())
-            .await
-            .expect("连接测试数据库");
-        let state = AppState::new(db, config);
+        let state = AppState::new(config);
 
         TestApp {
             router: build_router(state.clone()),
@@ -101,14 +99,39 @@ impl TestApp {
         self.state.config.data_dir.clone()
     }
 
+    /// 拥有者（`OWNER_ID`）的封面目录
+    pub fn covers_dir(&self) -> PathBuf {
+        self.data_dir().join(format!("users/{OWNER_ID}/covers"))
+    }
+
+    /// 拥有者（`OWNER_ID`）的数据库连线
+    pub async fn db(&self) -> DatabaseConnection {
+        self.db_of(OWNER_ID).await
+    }
+
+    /// 指定使用者的数据库连线；首次呼叫会建立该使用者的数据库
+    pub async fn db_of(&self, user_id: i64) -> DatabaseConnection {
+        self.state
+            .stores
+            .open(user_id)
+            .await
+            .expect("开启使用者数据库")
+            .db()
+            .clone()
+    }
+
     /// 直接写入数据库建立一个自定义游戏（不经过 RPC，所以不改变 data_version）
     pub async fn insert_game(&self, name: &str) -> i32 {
+        self.insert_game_for(OWNER_ID, name).await
+    }
+
+    pub async fn insert_game_for(&self, user_id: i64, name: &str) -> i32 {
         let data: InsertGameData = serde_json::from_value(json!({
             "id_type": "custom",
             "custom_data": { "name": name },
         }))
         .expect("建立测试游戏数据");
-        GamesRepository::insert(&self.state.db, data)
+        GamesRepository::insert(&self.db_of(user_id).await, data)
             .await
             .expect("写入测试游戏")
             .id
@@ -145,7 +168,11 @@ pub fn token_for(user_id: Value, exp_offset_secs: i64) -> String {
 }
 
 pub fn owner_token() -> String {
-    token_for(json!(OWNER_ID), 3600)
+    user_token(OWNER_ID)
+}
+
+pub fn user_token(user_id: i64) -> String {
+    token_for(json!(user_id), 3600)
 }
 
 impl TestApp {
@@ -185,9 +212,14 @@ impl TestApp {
         self.send(builder.body(body.into()).unwrap()).await
     }
 
-    /// 以拥有者身份调用 RPC
+    /// 以拥有者（`OWNER_ID`）身份调用 RPC
     pub async fn rpc(&self, command: &str, args: Value) -> TestResponse {
-        let bearer = format!("Bearer {}", owner_token());
+        self.rpc_as(OWNER_ID, command, args).await
+    }
+
+    /// 以指定使用者身份调用 RPC
+    pub async fn rpc_as(&self, user_id: i64, command: &str, args: Value) -> TestResponse {
+        let bearer = format!("Bearer {}", user_token(user_id));
         self.post_raw(
             &format!("/game/api/rpc/{command}"),
             args.to_string(),
@@ -197,7 +229,11 @@ impl TestApp {
     }
 
     pub async fn data_version(&self) -> i64 {
-        let bearer = format!("Bearer {}", owner_token());
+        self.data_version_of(OWNER_ID).await
+    }
+
+    pub async fn data_version_of(&self, user_id: i64) -> i64 {
+        let bearer = format!("Bearer {}", user_token(user_id));
         let response = self.get("/game/api/version", Some(&bearer)).await;
         assert_eq!(response.status, StatusCode::OK, "{}", response.text());
         response.json()["data_version"]
@@ -210,13 +246,12 @@ impl TestApp {
     /// 直接写入一张来源封面（不经网络），返回 cover_version。
     pub async fn seed_source_cover(&self, game_id: i32, bytes: &[u8]) -> String {
         let kind = reina_server::api::covers::sniff::sniff(bytes).expect("image");
-        let staged = reina_server::api::covers::handlers::cover_store(&self.state)
+        let store = self.state.stores.open(OWNER_ID).await.unwrap();
+        let staged = reina_server::api::covers::handlers::cover_store(&store)
             .put(game_id, bytes, kind)
             .await
             .unwrap();
-        let txn = sea_orm::TransactionTrait::begin(&self.state.db)
-            .await
-            .unwrap();
+        let txn = sea_orm::TransactionTrait::begin(store.db()).await.unwrap();
         reina_core::database::repository::games_repository::GamesRepository::set_cover_hashes_in_connection(
             &txn,
             game_id,

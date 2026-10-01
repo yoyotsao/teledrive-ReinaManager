@@ -18,7 +18,7 @@ import {
 	type Page,
 } from "@playwright/test";
 import { FakeBridge } from "./fake-bridge.mjs";
-import { validJwt } from "./jwt.mjs";
+import { signJwt, TEST_OWNER_ID } from "./jwt.mjs";
 import { BASE_URL_ENV, TEST_TIMEZONE } from "./test-env.mjs";
 
 export const REAL_BRIDGE_ORIGIN = "http://127.0.0.1:8081";
@@ -134,8 +134,11 @@ export interface ServerApi {
 	createGame(name: string): Promise<number>;
 }
 
-function createServerApi(baseUrl: string): ServerApi {
-	const auth = () => ({ Authorization: `Bearer ${validJwt()}` });
+function createServerApi(
+	baseUrl: string,
+	userId: number = TEST_OWNER_ID,
+): ServerApi {
+	const auth = () => ({ Authorization: `Bearer ${signJwt({ userId })}` });
 	async function json<T>(response: Response, what: string): Promise<T> {
 		if (!response.ok) {
 			throw new Error(
@@ -197,6 +200,8 @@ function createServerApi(baseUrl: string): ServerApi {
 interface E2EFixtures {
 	baseUrl: string;
 	server: ServerApi;
+	/** 以另一位 TeleDrive 使用者（user_id）的身分呼叫 server；`server` 固定是 TEST_OWNER_ID */
+	serverAs: (userId: number) => ServerApi;
 	bridge: FakeBridge;
 	bridgeMode: BridgeMode;
 	/** 与预设 context 相同配置的额外 BrowserContext（独立 IndexedDB，模拟另一台装置） */
@@ -212,6 +217,9 @@ export const test = base.extend<E2EFixtures>({
 	},
 	server: async ({ baseUrl }, use) => {
 		await use(createServerApi(baseUrl));
+	},
+	serverAs: async ({ baseUrl }, use) => {
+		await use((userId) => createServerApi(baseUrl, userId));
 	},
 	bridgeMode: ["fake", { option: true }],
 	bridge: async ({ baseUrl }, use) => {

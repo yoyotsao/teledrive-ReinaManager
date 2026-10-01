@@ -4,7 +4,9 @@ pub mod api;
 pub mod app;
 pub mod config;
 pub mod error;
+pub mod hgamefree;
 pub mod static_files;
+pub mod stores;
 pub mod tx;
 pub mod upstream;
 

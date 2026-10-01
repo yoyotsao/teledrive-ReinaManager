@@ -15,6 +15,24 @@ pub struct ListingRow {
     /// TeleDrive 存的是無時區 UTC ISO 字串；同格式可以直接字串比較。
     #[serde(default)]
     pub created_at: String,
+    /// TeleDrive 記錄的上傳長度（以 512 KB 為單位補齊，分卷檔只有第一卷）。
+    #[serde(default)]
+    pub filesize: Option<u64>,
+    /// 尾端 `:<n>` 是真正的位元組數。
+    #[serde(default)]
+    pub file_hash: Option<String>,
+}
+
+impl ListingRow {
+    /// 真實大小：優先用 hash 尾端記錄的長度，沒有才退回 `filesize`。
+    pub fn real_size(&self) -> Option<u64> {
+        self.file_hash
+            .as_deref()
+            .and_then(|hash| hash.rsplit_once(':'))
+            .and_then(|(_, tail)| tail.parse().ok())
+            .or(self.filesize)
+            .filter(|size| *size > 0)
+    }
 }
 
 fn is_zip_name(name: &str) -> bool {
@@ -41,7 +59,8 @@ fn rank(row: &ListingRow) -> (u8, &str) {
     (tier, row.created_at.as_str())
 }
 
-pub fn derive_game_names(rows: &[ListingRow]) -> Vec<String> {
+/// 每個遊戲名稱挑出 bridge 最終會解析到的那一列。
+fn pick_game_rows(rows: &[ListingRow]) -> Vec<&ListingRow> {
     // 對齊 tdapi.children_by_name：完全相同檔名只保留 created_at 較新者。
     let mut newest: BTreeMap<&str, &ListingRow> = BTreeMap::new();
     for row in rows {
@@ -68,12 +87,25 @@ pub fn derive_game_names(rows: &[ListingRow]) -> Vec<String> {
         }
     }
 
-    let mut names: Vec<String> = groups
-        .values()
+    groups.into_values().collect()
+}
+
+pub fn derive_game_names(rows: &[ListingRow]) -> Vec<String> {
+    let mut names: Vec<String> = pick_game_rows(rows)
+        .into_iter()
         .map(|row| strip_zip_suffix(&row.filename).to_string())
         .collect();
     names.sort();
     names
+}
+
+/// 遊戲名稱 → zip 的位元組數。資料夾或查不到大小的不收。
+pub fn derive_game_sizes(rows: &[ListingRow]) -> BTreeMap<String, u64> {
+    pick_game_rows(rows)
+        .into_iter()
+        .filter(|row| !row.is_dir)
+        .filter_map(|row| Some((strip_zip_suffix(&row.filename).to_string(), row.real_size()?)))
+        .collect()
 }
 
 #[cfg(test)]
@@ -86,6 +118,8 @@ mod tests {
             filename: name.into(),
             is_dir,
             created_at: created_at.into(),
+            filesize: None,
+            file_hash: None,
         }
     }
 
@@ -146,5 +180,22 @@ mod tests {
             derive_game_names(&rows),
             vec!["サブ救って!", "廃村少女, 体験版"]
         );
+    }
+
+    #[test]
+    fn 大小取_hash_尾端的真實長度_缺少時退回_filesize() {
+        let mut exact = row("Foo.zip", false, "2026-01-01T00:00:00");
+        exact.filesize = Some(1_048_576);
+        exact.file_hash = Some("abcd:1000000".into());
+        let mut padded = row("Bar.zip", false, "2026-01-01T00:00:00");
+        padded.filesize = Some(2_000);
+        let folder = row("Dir", true, "2026-01-01T00:00:00");
+        let unknown = row("Baz.zip", false, "2026-01-01T00:00:00");
+
+        let sizes = derive_game_sizes(&[exact, padded, folder, unknown]);
+        assert_eq!(sizes.get("Foo"), Some(&1_000_000));
+        assert_eq!(sizes.get("Bar"), Some(&2_000));
+        assert!(!sizes.contains_key("Dir"), "資料夾沒有單一大小");
+        assert!(!sizes.contains_key("Baz"));
     }
 }

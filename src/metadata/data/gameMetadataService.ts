@@ -48,6 +48,8 @@ const mixedIdTypePriority: readonly SourceType[] = [
 	"ymgal",
 	"dlsite",
 	"erogamescape",
+	"steam",
+	"hgamefree",
 ];
 
 function hasSourceId(

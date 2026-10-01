@@ -87,6 +87,44 @@ describe("useCloudScan", () => {
 		checkServerVersion.mockResolvedValue(undefined);
 	});
 
+	it("掃描時重跑所有待確認項目，不論候選是否為空", async () => {
+		startCloudScan.mockResolvedValue({ added_ids: [], pending_ids: [] });
+		getScanPending.mockResolvedValue([
+			{
+				id: 1,
+				name: "空候選",
+				teledrive_path: "game/空候選",
+				scan_status: "needs_confirmation",
+				scan_candidates: [],
+			},
+			{
+				id: 2,
+				name: "已有候選",
+				teledrive_path: "game/已有候選",
+				scan_status: "needs_confirmation",
+				scan_candidates: [{ source: "bgm", externalId: "b", name: "B" }],
+			},
+		]);
+		resolveCloudScanName.mockResolvedValue({
+			kind: "needs_confirmation",
+			candidates: [{ source: "vndb", externalId: "v9", name: "X" }],
+		});
+
+		const { result } = renderHook(() => useCloudScan(), { wrapper });
+		await act(async () => {
+			await result.current.scan();
+		});
+
+		expect(resolveCloudScanName.mock.calls.map((call) => call[0])).toEqual([
+			"空候選",
+			"已有候選",
+		]);
+		expect(updateGame).toHaveBeenCalledWith(1, {
+			scan_status: "needs_confirmation",
+			scan_candidates: [{ source: "vndb", externalId: "v9", name: "X" }],
+		});
+	});
+
 	it("自動套用來源資料與封面，待確認寫入候選", async () => {
 		startCloudScan.mockResolvedValue({
 			added_ids: [1, 2],
@@ -176,7 +214,7 @@ describe("useCloudScan", () => {
 		expect(checkServerVersion).toHaveBeenCalled();
 	});
 
-	it("已經是待確認的條目不會重新自動解析", async () => {
+	it("已有舊候選的待確認條目重跑後可以精確命中並自動套用", async () => {
 		startCloudScan.mockResolvedValue({
 			added_ids: [],
 			pending_ids: [3],
@@ -187,16 +225,24 @@ describe("useCloudScan", () => {
 				name: "C",
 				teledrive_path: "game/C",
 				scan_status: "needs_confirmation",
-				scan_candidates: [],
+				scan_candidates: [{ source: "bgm", externalId: "c", name: "C EX" }],
 			},
 		]);
+		resolveCloudScanName.mockResolvedValue({ kind: "accepted", draft });
 
 		const { result } = renderHook(() => useCloudScan(), { wrapper });
 		await act(async () => {
 			await result.current.scan();
 		});
 
-		expect(resolveCloudScanName).not.toHaveBeenCalled();
+		expect(resolveCloudScanName).toHaveBeenCalledTimes(1);
+		expect(updateGame).toHaveBeenCalledWith(
+			3,
+			expect.objectContaining({
+				scan_status: "complete",
+				scan_candidates: null,
+			}),
+		);
 	});
 
 	it("使用者確認候選後抓完整資料並完成", async () => {

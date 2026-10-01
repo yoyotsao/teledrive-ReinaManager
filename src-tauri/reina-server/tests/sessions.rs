@@ -32,7 +32,7 @@ async fn session_count(app: &TestApp, game_id: i32) -> u64 {
     use reina_core::entity::game_sessions;
     game_sessions::Entity::find()
         .filter(game_sessions::Column::GameId.eq(game_id))
-        .count(&app.state.db)
+        .count(&app.db().await)
         .await
         .unwrap()
 }
@@ -68,7 +68,7 @@ async fn accepts_exact_seconds_and_deduplicates_concurrent_uuid() {
     assert_eq!(session_count(&app, game_id).await, 1);
     assert_eq!(app.data_version().await, before + 1);
 
-    let stats = GameStatsRepository::get_statistics(&app.state.db, game_id)
+    let stats = GameStatsRepository::get_statistics(&app.db().await, game_id)
         .await
         .unwrap()
         .unwrap();
@@ -76,7 +76,7 @@ async fn accepts_exact_seconds_and_deduplicates_concurrent_uuid() {
     assert_eq!(stats.total_time, Some(1));
 
     let session = reina_core::entity::game_sessions::Entity::find()
-        .one(&app.state.db)
+        .one(&app.db().await)
         .await
         .unwrap()
         .unwrap();
@@ -106,7 +106,7 @@ async fn zero_minute_bridge_session_updates_count_and_last_played() {
 
     assert_eq!(response.status, StatusCode::OK, "{}", response.text());
     assert_eq!(response.json(), json!({"accepted": true}));
-    let stats = GameStatsRepository::get_statistics(&app.state.db, game_id)
+    let stats = GameStatsRepository::get_statistics(&app.db().await, game_id)
         .await
         .unwrap()
         .unwrap();
@@ -186,8 +186,8 @@ async fn missing_game_and_commit_fault_do_not_write_or_bump_version() {
 async fn database_failure_returns_server_error_and_rolls_back_all_changes() {
     let app = spawn_app().await;
     let game_id = app.insert_game("Database failure").await;
-    app.state
-        .db
+    app.db()
+        .await
         .execute_unprepared(
             "CREATE TRIGGER reject_bridge_session BEFORE INSERT ON game_sessions \
              BEGIN SELECT RAISE(FAIL, 'forced session insert failure'); END",
@@ -214,7 +214,7 @@ async fn database_failure_returns_server_error_and_rolls_back_all_changes() {
     assert_eq!(response.json()["code"], "command_failed");
     assert_eq!(session_count(&app, game_id).await, 0);
     assert!(
-        GameStatsRepository::get_statistics(&app.state.db, game_id)
+        GameStatsRepository::get_statistics(&app.db().await, game_id)
             .await
             .unwrap()
             .is_none()

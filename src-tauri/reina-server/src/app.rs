@@ -6,15 +6,19 @@ use std::time::Duration;
 use axum::Router;
 use axum::response::Redirect;
 use axum::routing::get;
-use sea_orm::DatabaseConnection;
 
 use crate::config::Config;
+use crate::hgamefree::index::HgamefreeIndex;
+use crate::stores::UserStores;
 use crate::tx::CommitFault;
 use crate::{api, static_files};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: DatabaseConnection,
+    /// 每位使用者各自的数据库与封面目录；没有全域连线，所有数据访问都要先经过 `AuthUser`
+    pub stores: Arc<UserStores>,
+    /// HGameFree 文章索引：全站共用，放在 `<data_dir>/hgamefree.db`，不属于任何使用者
+    pub hgamefree: Arc<HgamefreeIndex>,
     pub config: Arc<Config>,
     /// 对外请求（TeleDrive API、元数据来源、封面下载）共用的 client
     pub http: reqwest::Client,
@@ -24,14 +28,15 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(db: DatabaseConnection, config: Config) -> Self {
+    pub fn new(config: Config) -> Self {
         let http = reqwest::Client::builder()
             .user_agent(concat!("ReinaManager-server/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(30))
             .build()
             .expect("建立 HTTP client 失败");
         Self {
-            db,
+            stores: Arc::new(UserStores::new(config.data_dir.clone(), config.max_users)),
+            hgamefree: Arc::new(HgamefreeIndex::new(config.data_dir.join("hgamefree.db"))),
             config: Arc::new(config),
             http,
             fault: Arc::new(CommitFault::default()),

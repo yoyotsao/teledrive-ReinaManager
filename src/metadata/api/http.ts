@@ -240,6 +240,8 @@ function inferRateLimitSource(url: string): ApiRateLimitSource | undefined {
 		if (host === "www.dlsite.com") return "dlsite";
 		if (host === "erogamescape.org") return "erogamescape";
 		if (host === "www.hikarinagi.org") return "hikarinagi";
+		if (host === "hgamefree.info") return "hgamefree";
+		if (host === "store.steampowered.com") return "steam";
 	} catch {
 		return undefined;
 	}
@@ -263,6 +265,10 @@ export function getApiRateLimitErrorMessage(
 			return "ErogameScape 请求被限速，请稍后重试";
 		case "hikarinagi":
 			return "Hikarinagi 请求被限速，请稍后重试";
+		case "hgamefree":
+			return "HGameFree 请求被限速，请稍后重试";
+		case "steam":
+			return "Steam 请求被限速，请稍后重试";
 	}
 }
 

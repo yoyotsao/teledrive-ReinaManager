@@ -68,6 +68,23 @@ pub static SOURCE_POLICIES: &[SourcePolicy] = &[
         default_backoff_ms: 0,
         max_backoff_ms: 0,
     },
+    // Steam 商店 API 约每 5 分钟 200 次；1.5 秒一次留足余量，被限流就直接停止。
+    SourcePolicy {
+        source: "steam",
+        hosts: &["store.steampowered.com"],
+        min_interval_ms: 1500,
+        max_429_retries: 0,
+        default_backoff_ms: 0,
+        max_backoff_ms: 0,
+    },
+    SourcePolicy {
+        source: "hgamefree",
+        hosts: &["hgamefree.info"],
+        min_interval_ms: 500,
+        max_429_retries: 0,
+        default_backoff_ms: 0,
+        max_backoff_ms: 0,
+    },
 ];
 
 /// 封面与候选预览图可以来自这些域名（含子域名）。
@@ -81,6 +98,8 @@ pub static IMAGE_HOST_SUFFIXES: &[&str] = &[
     "dlsite.jp",
     "dlsite.com",
     "erogamescape.org",
+    "hgamefree.info",
+    "steamstatic.com",
 ];
 
 /// 桌面版在 `src-tauri/src/game/cover/cloud.rs` 对 Bangumi/VNDB 图床另有备援代理；服务器下载来源封面时沿用。
@@ -130,6 +149,9 @@ mod tests {
             policy_for_host("www.hikarinagi.org").unwrap().source,
             "hikarinagi"
         );
+        assert_eq!(policy_for_host("hgamefree.info").unwrap().source, "hgamefree");
+        let steam = policy_for_host("store.steampowered.com").unwrap();
+        assert_eq!((steam.source, steam.min_interval_ms), ("steam", 1500));
         assert!(policy_for_host("evil.example.com").is_none());
         assert!(policy_for_host("vndb.org.evil.com").is_none());
     }

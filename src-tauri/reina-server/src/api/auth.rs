@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::stores::UserStore;
 
 #[derive(Deserialize)]
 struct Claims {
@@ -44,11 +45,13 @@ fn parse_user_id(value: &Value) -> Option<i64> {
     }
 }
 
-/// 已通过验证的拥有者。`token` 保留原文，扫描时要用它转调用 TeleDrive API。
-#[derive(Debug, Clone)]
+/// 已通过验证的使用者，附带他自己的数据库与封面目录。
+/// `token` 保留原文，扫描时要用它转调用 TeleDrive API。
+#[derive(Clone)]
 pub struct AuthUser {
     pub user_id: i64,
     pub token: String,
+    pub store: UserStore,
 }
 
 impl FromRequestParts<AppState> for AuthUser {
@@ -68,12 +71,12 @@ impl FromRequestParts<AppState> for AuthUser {
             .strip_prefix("Bearer ")
             .ok_or_else(ApiError::unauthorized)?;
         let user_id = verify_token(token, &state.config.jwt_secret)?;
-        if user_id != state.config.owner_id {
-            return Err(ApiError::forbidden());
-        }
+        // 任何有效的 TeleDrive 使用者都可以使用，各自拿到自己的数据；非正整数 id 视为无效
+        let store = state.stores.open(user_id).await?;
         Ok(Self {
             user_id,
             token: token.to_string(),
+            store,
         })
     }
 }

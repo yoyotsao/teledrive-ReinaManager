@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use reina_server::hgamefree::sync::spawn_background;
 use reina_server::{AppState, Config, build_router};
 
 #[tokio::main]
@@ -17,7 +18,6 @@ async fn main() {
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
     tokio::fs::create_dir_all(&config.data_dir).await?;
-    let db = reina_core::database::connect_database(&config.db_path()).await?;
 
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
     log::info!(
@@ -27,7 +27,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let listener = tokio::net::TcpListener::bind(address).await?;
-    axum::serve(listener, build_router(AppState::new(db, config)))
+    let state = AppState::new(config);
+    // 只在正式启动时同步；测试直接用 AppState::new，不会连外部站台
+    spawn_background(state.hgamefree.clone(), state.config.clone());
+    axum::serve(listener, build_router(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())

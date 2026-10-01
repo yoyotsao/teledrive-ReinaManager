@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { gameKeys } from "@/hooks/queries/useGames";
 import { checkServerVersion } from "@/hooks/queries/useServerVersion";
 import { fetchDlsiteWorkType } from "@/metadata/api/dlsite";
+import { findHgamefreeByExternalId } from "@/metadata/api/hgamefree";
 import { fetchVndbIdBySteamAppId } from "@/metadata/api/vndb";
 import {
 	type CloudScanDeps,
@@ -28,7 +29,12 @@ import type {
 	SourceType,
 } from "@/types";
 
+// hgamefree 放第一个：用户的资料夹名来自这个下载站，压缩包文件名能精确命中（本机索引，最快）。
+// 命中后 resolveCloudScanName 会用文章里的 Steam／DLsite ID 与标题去其他来源补完整资料。
+// steam 第二个：资料夹名常是 Steam 英文名，VNDB 等偏 galgame 的库收不到非 VN 的游戏。
 export const CLOUD_SCAN_SOURCES: readonly SourceType[] = [
+	"hgamefree",
+	"steam",
 	"vndb",
 	"bgm",
 	"ymgal",
@@ -55,6 +61,8 @@ function defaultDeps(): CloudScanDeps {
 			fetchDlsiteWorkType(rjId, getNetworkRequestContext()),
 		findVndbIdBySteamAppId: (appId) =>
 			fetchVndbIdBySteamAppId(appId, getNetworkRequestContext()),
+		findHgamefreeByExternalId: (id) =>
+			findHgamefreeByExternalId(id, getNetworkRequestContext()),
 	};
 }
 
@@ -131,8 +139,13 @@ export function useCloudScan(overrides: Partial<CloudScanDeps> = {}) {
 		setError(null);
 		try {
 			await startCloudScan();
+			// 待確認項目每次掃描都重跑：新增的來源或索引更新後，舊候選可能已經過時，
+			// 例如之前只查到 bgm 候選，現在下載站索引能精確命中而自動套用。
+			// 重跑只會覆寫候選清單，不會動使用者已確認的遊戲。
 			const items = (await getScanPending()).filter(
-				(item) => item.scan_status === "pending",
+				(item) =>
+					item.scan_status === "pending" ||
+					item.scan_status === "needs_confirmation",
 			);
 			setProgress({ done: 0, total: items.length });
 			const resolver = deps();

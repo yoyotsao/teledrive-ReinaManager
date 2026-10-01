@@ -3,7 +3,7 @@
 use axum::Router;
 use axum::routing::{any, get, post};
 
-use crate::api::{covers, metadata, rpc, scan, sessions, version};
+use crate::api::{covers, hgamefree, metadata, rpc, scan, sessions, version};
 use crate::app::AppState;
 use crate::error::ApiError;
 
@@ -13,6 +13,7 @@ pub fn routes() -> Router<AppState> {
         .route("/sessions", post(sessions::create_session))
         .route("/rpc/{command}", post(rpc::call))
         .merge(covers::handlers::routes())
+        .merge(hgamefree::handlers::routes())
         .merge(metadata::handlers::routes())
         .merge(scan::handlers::routes())
         // 用真实的通配符路由（而不是 `Router::fallback`）承接 `/game/api` 下未匹配的路径：

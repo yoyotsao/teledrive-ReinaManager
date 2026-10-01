@@ -650,6 +650,7 @@
 			"expandTags": "Expand Tags",
 			"expected_hours": "Expected Hours",
 			"gameDatafrom": "Data Source",
+			"gameSize": "File Size",
 			"gameDeveloper": "Developer",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "Add alias...",

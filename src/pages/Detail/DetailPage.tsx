@@ -25,6 +25,7 @@ import {
 	Button,
 	Chip,
 	CircularProgress,
+	Link,
 	Stack,
 	Tab,
 	Tabs,
@@ -42,9 +43,17 @@ import { LaunchModal } from "@/components/LaunchModal";
 import { useVirtualCategories } from "@/hooks/features/collections/useVirtualCollections";
 import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
-import { isWebRuntime, platformCapabilities } from "@/services/platform";
+import { useCloudGameSize } from "@/hooks/queries/useCloudSizes";
+import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
+import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
+import {
+	isWebRuntime,
+	openExternal,
+	platformCapabilities,
+} from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
+import { formatFileSize } from "@/utils/fileSize";
 import { getGameDisplayName } from "@/utils/game";
 import { getDeveloperNames } from "@/utils/game/gameIndex";
 import { getTagDisplayName } from "@/utils/game/tagTranslation";
@@ -113,6 +122,7 @@ export const Detail: React.FC = () => {
 	);
 	const { selectedGame, isLoadingSelectedGame } = useGameById(id);
 	const { index: gameIndex } = useGameIndex();
+	const cloudSize = useCloudGameSize(selectedGame?.teledrive_path);
 	const virtualCategories = useVirtualCategories(gameIndex);
 	const [tabIndex, setTabIndex] = useState(0);
 	const [collectionDialogOpen, setCollectionDialogOpen] = useState(false);
@@ -196,6 +206,22 @@ export const Detail: React.FC = () => {
 			/>
 		));
 	}, [selectedGame, t, handleDeveloperClick]);
+
+	// 数据来源链接：单一来源只列该来源，混合模式列出所有有 ID 的来源
+	const sourceLinks = useMemo(() => {
+		if (!selectedGame) return [];
+		return REGISTERED_SOURCE_KEYS.flatMap((source) => {
+			if (selectedGame.id_type !== "mixed" && selectedGame.id_type !== source) {
+				return [];
+			}
+			const sourceId = getSourceIdFromDisplay(selectedGame, source);
+			if (!sourceId) return [];
+			const adapter = getRuntimeSourceAdapter(source);
+			return [
+				{ source, label: adapter.label, url: adapter.getExternalUrl(sourceId) },
+			];
+		});
+	}, [selectedGame]);
 
 	const activePage = useActivePage();
 	const title = selectedGame
@@ -305,7 +331,39 @@ export const Detail: React.FC = () => {
 										{t("pages.Detail.gameDatafrom", "数据来源")}
 									</Typography>
 									<Typography component="div">
-										{selectedGame.id_type}
+										{sourceLinks.length > 0
+											? sourceLinks.map((link, index) => (
+													<span key={link.source}>
+														{index > 0 && ", "}
+														<Link
+															href={link.url}
+															target="_blank"
+															rel="noopener noreferrer"
+															underline="hover"
+															onClick={(event) => {
+																event.preventDefault();
+																void openExternal(link.url);
+															}}
+														>
+															{link.label}
+														</Link>
+													</span>
+												))
+											: selectedGame.id_type}
+									</Typography>
+								</Box>
+							)}
+							{cloudSize !== undefined && (
+								<Box>
+									<Typography
+										variant="subtitle2"
+										fontWeight="bold"
+										component="div"
+									>
+										{t("pages.Detail.gameSize", "文件大小")}
+									</Typography>
+									<Typography component="div">
+										{formatFileSize(cloudSize)}
 									</Typography>
 								</Box>
 							)}

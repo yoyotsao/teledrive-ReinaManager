@@ -632,6 +632,7 @@
 			"expandTags": "タグを展開する",
 			"expected_hours": "予想時間",
 			"gameDatafrom": "データソース",
+			"gameSize": "ファイルサイズ",
 			"gameDeveloper": "開発者",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "別名を入力...",

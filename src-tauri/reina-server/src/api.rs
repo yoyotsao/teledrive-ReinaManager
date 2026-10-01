@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod covers;
+pub mod hgamefree;
 pub mod metadata;
 pub mod router;
 pub mod rpc;

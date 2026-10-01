@@ -234,5 +234,13 @@ mod tests {
             limiters.for_source("hikarinagi").interval(),
             Duration::from_millis(500)
         );
+        assert_eq!(
+            limiters.for_source("hgamefree").interval(),
+            Duration::from_millis(500)
+        );
+        assert_eq!(
+            limiters.for_source("steam").interval(),
+            Duration::from_millis(1500)
+        );
     }
 }

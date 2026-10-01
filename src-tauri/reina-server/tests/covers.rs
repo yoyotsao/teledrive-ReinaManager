@@ -160,7 +160,7 @@ async fn 写入_transaction_失败时新文件被删除且旧封面仍可取得(
     app.fail_next_write_commit(); // 任务 3 测试工具：让下一次 tx::finish 在 commit 前 rollback 并回 500
     let (status, _) = put_cover(&app, id, JPG).await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-    let covers_dir = app.data_dir().join(format!("covers/game_{id}"));
+    let covers_dir = app.covers_dir().join(format!("game_{id}"));
     let files: Vec<_> = std::fs::read_dir(&covers_dir)
         .unwrap()
         .filter_map(|e| e.ok())
@@ -174,7 +174,7 @@ async fn 删除游戏在_commit_成功后才清除封面目录() {
     let app = TestApp::new().await;
     let id = app.insert_game("Foo").await;
     put_cover(&app, id, PNG).await;
-    let covers_dir = app.data_dir().join(format!("covers/game_{id}"));
+    let covers_dir = app.covers_dir().join(format!("game_{id}"));
     assert!(covers_dir.exists());
 
     app.fail_next_write_commit();
@@ -203,7 +203,7 @@ async fn 批量删除游戏也会清除每个封面目录() {
         .await;
     assert_eq!(deleted.status, StatusCode::OK, "{}", deleted.text());
     for id in [a, b] {
-        assert!(!app.data_dir().join(format!("covers/game_{id}")).exists());
+        assert!(!app.covers_dir().join(format!("game_{id}")).exists());
     }
 }
 

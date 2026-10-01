@@ -19,12 +19,12 @@ pub struct SessionResponse {
 }
 
 pub async fn create_session(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     payload: Result<Json<BridgeSessionInput>, JsonRejection>,
 ) -> Result<Json<SessionResponse>, ApiError> {
     let Json(input) = payload.map_err(|rejection| ApiError::bad_request(rejection.body_text()))?;
-    let transaction = tx::begin(&state.db).await?;
+    let transaction = tx::begin(user.store.db()).await?;
     let result = insert_bridge_session_in_connection(&transaction, input)
         .await
         .map_err(|error| match error {

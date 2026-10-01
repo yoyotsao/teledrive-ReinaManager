@@ -18,6 +18,8 @@ export const SOURCE_COVER_PRIORITY: readonly SourceType[] = [
 	"dlsite",
 	"kun",
 	"ymgal",
+	"steam",
+	"hgamefree",
 ];
 
 const BASIC_FIELD_PRIORITY: readonly SourceType[] = [
@@ -28,6 +30,8 @@ const BASIC_FIELD_PRIORITY: readonly SourceType[] = [
 	"erogamescape",
 	"ymgal",
 	"kun",
+	"steam",
+	"hgamefree",
 ];
 const SUMMARY_PRIORITY: readonly SourceType[] = [
 	"hikarinagi",
@@ -36,6 +40,7 @@ const SUMMARY_PRIORITY: readonly SourceType[] = [
 	"kun",
 	"vndb",
 	"dlsite",
+	"steam",
 ];
 const DEVELOPER_PRIORITY: readonly SourceType[] = [
 	"vndb",
@@ -44,6 +49,7 @@ const DEVELOPER_PRIORITY: readonly SourceType[] = [
 	"dlsite",
 	"ymgal",
 	"hikarinagi",
+	"steam",
 	"bgm",
 ];
 const MIXED_TAG_SOURCES: readonly SourceType[] = [
@@ -53,6 +59,7 @@ const MIXED_TAG_SOURCES: readonly SourceType[] = [
 	"erogamescape",
 	"vndb",
 	"kun",
+	"steam",
 ];
 const MIXED_ALIAS_SOURCES: readonly SourceType[] = [
 	"bgm",

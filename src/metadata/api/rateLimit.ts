@@ -5,7 +5,9 @@ export type ApiRateLimitSource =
 	| "kun"
 	| "dlsite"
 	| "erogamescape"
-	| "hikarinagi";
+	| "hikarinagi"
+	| "hgamefree"
+	| "steam";
 
 export interface ApiRateLimitPolicy {
 	source: ApiRateLimitSource;
@@ -107,6 +109,22 @@ const API_RATE_LIMIT_POLICIES: Record<ApiRateLimitSource, ApiRateLimitPolicy> =
 			max429Retries: 0,
 			stopOn429: true,
 		},
+		hgamefree: {
+			source: "hgamefree",
+			minIntervalMs: 500,
+			defaultBackoffMs: 0,
+			maxBackoffMs: 0,
+			max429Retries: 0,
+			stopOn429: true,
+		},
+		steam: {
+			source: "steam",
+			minIntervalMs: 1500,
+			defaultBackoffMs: 0,
+			maxBackoffMs: 0,
+			max429Retries: 0,
+			stopOn429: true,
+		},
 	};
 
 export function getApiRateLimitPolicy(
@@ -123,6 +141,8 @@ const rateLimitStates: Record<ApiRateLimitSource, ApiRateLimitState> = {
 	dlsite: createInitialState(),
 	erogamescape: createInitialState(),
 	hikarinagi: createInitialState(),
+	hgamefree: createInitialState(),
+	steam: createInitialState(),
 };
 
 const listeners = new Set<ApiRateLimitListener>();

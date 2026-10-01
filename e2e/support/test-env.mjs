@@ -2,7 +2,7 @@
  * @file E2E 隔离环境
  * @description 以子进程启动真正的 reina-server（真 auth / static / router），只有资料是隔离的：
  * - 临时 REINA_DATA_DIR，每次 suite 前清空，绝不指向 /data 或正式 DB；
- * - JWT_SECRET / REINA_OWNER_ID 只放在这个子进程；
+ * - JWT_SECRET 只放在这个子进程；
  * - REINA_STATIC_DIR 只能是本次 `pnpm test:e2e` 刚 build 的 dist-web，缺少时直接失败，不退回 dev server；
  * - 子进程 TZ=Asia/Taipei（Playwright 的 timezoneId 见 playwright.config.ts）。
  *
@@ -16,7 +16,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TEST_JWT_SECRET, TEST_OWNER_ID } from "./jwt.mjs";
+import { TEST_JWT_SECRET } from "./jwt.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const EXE = process.platform === "win32" ? ".exe" : "";
@@ -144,7 +144,6 @@ export async function startTestEnv() {
 	}
 	Object.assign(env, {
 		JWT_SECRET: TEST_JWT_SECRET,
-		REINA_OWNER_ID: String(TEST_OWNER_ID),
 		REINA_DATA_DIR: dataDir,
 		REINA_STATIC_DIR: staticDir,
 		REINA_PORT: String(port),

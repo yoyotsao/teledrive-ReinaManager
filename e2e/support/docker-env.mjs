@@ -12,7 +12,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { TEST_JWT_SECRET, TEST_OWNER_ID } from "./jwt.mjs";
+import { TEST_JWT_SECRET } from "./jwt.mjs";
 
 export const CANDIDATE_IMAGE = "reinamanager:local";
 
@@ -98,8 +98,6 @@ export async function startCandidateServer() {
 			"TZ=Asia/Taipei",
 			"-e",
 			`JWT_SECRET=${TEST_JWT_SECRET}`,
-			"-e",
-			`REINA_OWNER_ID=${TEST_OWNER_ID}`,
 			"-e",
 			"REINA_STATIC_DIR=/app/static",
 			"-v",

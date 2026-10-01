@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
@@ -9,7 +11,7 @@ use reina_core::database::dto::InsertGameData;
 use reina_core::database::repository::games_repository::{GamesRepository, ScanPendingRow};
 
 use crate::api::auth::AuthUser;
-use crate::api::scan::naming::derive_game_names;
+use crate::api::scan::naming::{ListingRow, derive_game_names, derive_game_sizes};
 use crate::api::scan::teledrive::{TeleDriveClient, TeleDriveError};
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -19,6 +21,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/scan", post(scan))
         .route("/scan/pending", get(pending))
+        .route("/scan/sizes", get(sizes))
 }
 
 #[derive(Serialize)]
@@ -40,11 +43,8 @@ fn teledrive_error(error: TeleDriveError) -> ApiError {
     }
 }
 
-async fn scan(
-    user: AuthUser,
-    State(state): State<AppState>,
-) -> Result<Json<ScanResponse>, ApiError> {
-    // TeleDrive 列表要在寫入 transaction 之外讀完，避免網路等待期間占住 SQLite 寫鎖。
+/// 用使用者自己的 token 讀 TeleDrive 遊戲資料夾的完整列表。
+async fn list_game_rows(state: &AppState, user: &AuthUser) -> Result<Vec<ListingRow>, ApiError> {
     let base = url::Url::parse(&state.config.teledrive_api)
         .map_err(|error| ApiError::internal(format!("TELEDRIVE_API 不是合法網址: {error}")))?;
     let client = TeleDriveClient::new(state.http.clone(), base, user.token.clone());
@@ -59,17 +59,25 @@ async fn scan(
                 "TeleDrive has no game folder",
             )
         })?;
-    let rows = client
+    client
         .list_children(&game_folder)
         .await
-        .map_err(teledrive_error)?;
+        .map_err(teledrive_error)
+}
+
+async fn scan(
+    user: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<ScanResponse>, ApiError> {
+    // TeleDrive 列表要在寫入 transaction 之外讀完，避免網路等待期間占住 SQLite 寫鎖。
+    let rows = list_game_rows(&state, &user).await?;
     let names = derive_game_names(&rows);
     let paths: Vec<String> = names
         .iter()
         .map(|name| format!("{}/{name}", state.config.game_folder))
         .collect();
 
-    let txn = tx::begin(&state.db).await?;
+    let txn = tx::begin(user.store.db()).await?;
     let result = insert_missing(&txn, &names, &paths).await;
     let response = tx::finish(&state, txn, result, |response: &ScanResponse| {
         !response.added_ids.is_empty()
@@ -122,9 +130,22 @@ async fn insert_missing(
     })
 }
 
-async fn pending(
-    _user: AuthUser,
+async fn pending(user: AuthUser) -> Result<Json<Vec<ScanPendingRow>>, ApiError> {
+    Ok(Json(
+        GamesRepository::find_scan_pending(user.store.db()).await?,
+    ))
+}
+
+/// 各遊戲 zip 的大小，鍵為 `teledrive_path`。資料夾型遊戲沒有單一大小，不回傳。
+async fn sizes(
+    user: AuthUser,
     State(state): State<AppState>,
-) -> Result<Json<Vec<ScanPendingRow>>, ApiError> {
-    Ok(Json(GamesRepository::find_scan_pending(&state.db).await?))
+) -> Result<Json<BTreeMap<String, u64>>, ApiError> {
+    let rows = list_game_rows(&state, &user).await?;
+    Ok(Json(
+        derive_game_sizes(&rows)
+            .into_iter()
+            .map(|(name, size)| (format!("{}/{name}", state.config.game_folder), size))
+            .collect(),
+    ))
 }

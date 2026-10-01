@@ -10,11 +10,12 @@ use super::{read, write};
 use crate::api::auth::AuthUser;
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::stores::UserStore;
 use crate::tx;
 
 pub async fn call(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(name): Path<String>,
     body: Bytes,
 ) -> Result<Json<Value>, ApiError> {
@@ -22,8 +23,8 @@ pub async fn call(
         .ok_or_else(|| ApiError::not_found(format!("不支持的指令: {name}")))?;
     let args = parse_body(&body)?;
     let value = match command {
-        Command::Read(command) => read::dispatch_read(&state.db, command, args).await?,
-        Command::Write(command) => run_write(&state, command, args).await?,
+        Command::Read(command) => read::dispatch_read(user.store.db(), command, args).await?,
+        Command::Write(command) => run_write(&state, &user.store, command, args).await?,
     };
     Ok(Json(value))
 }
@@ -43,16 +44,17 @@ fn parse_body(body: &Bytes) -> Result<Value, ApiError> {
 
 async fn run_write(
     state: &AppState,
+    user_store: &UserStore,
     command: WriteCommand,
     args: Value,
 ) -> Result<Value, ApiError> {
     let deleted_ids = deleted_game_ids(&command, &args);
-    let txn = tx::begin(&state.db).await?;
+    let txn = tx::begin(user_store.db()).await?;
     let result = write::dispatch_write(&txn, command, args).await;
     let value = tx::finish(state, txn, result, |_| true).await?;
     // commit 已成功才清理封面文件；清理失败只记录警告，不影响已完成的删除
     if !deleted_ids.is_empty() {
-        let store = crate::api::covers::handlers::cover_store(state);
+        let store = crate::api::covers::handlers::cover_store(user_store);
         for id in deleted_ids {
             // 与进行中的封面更换串行，避免对方写档后被整个目录删掉之外的交错
             let _guard = store.lock_game(id).await;

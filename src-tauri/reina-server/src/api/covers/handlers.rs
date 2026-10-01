@@ -15,6 +15,7 @@ use crate::api::covers::sniff::{ImageKind, sniff};
 use crate::api::covers::store::{CoverStore, StagedCover};
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::stores::UserStore;
 use crate::tx;
 use crate::upstream::fetch::{UpstreamRequest, fetch_bytes};
 use crate::upstream::policy::{BANGUMI_IMAGE_PROXY_PREFIX, VNDB_IMAGE_PROXY_PREFIX};
@@ -35,8 +36,9 @@ pub fn routes() -> Router<AppState> {
         .layer(DefaultBodyLimit::max(MAX_COVER_BYTES + 1))
 }
 
-pub fn cover_store(state: &AppState) -> CoverStore {
-    CoverStore::new(state.config.data_dir.join("covers"))
+/// 使用者自己的封面目录：`<data_dir>/users/<user_id>/covers`
+pub fn cover_store(store: &UserStore) -> CoverStore {
+    CoverStore::new(store.covers_dir())
 }
 
 #[derive(Deserialize)]
@@ -51,13 +53,12 @@ pub struct CoverVersionResponse {
 }
 
 async fn get_cover(
-    _user: AuthUser,
-    State(state): State<AppState>,
+    user: AuthUser,
     Path(game_id): Path<i32>,
     Query(query): Query<VersionQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let cover = GamesRepository::find_cover_state(&state.db, game_id)
+    let cover = GamesRepository::find_cover_state(user.store.db(), game_id)
         .await?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "game_not_found", "game not found"))?;
     let Some(current) = cover.current() else {
@@ -86,7 +87,7 @@ async fn get_cover(
     {
         return Ok((StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response());
     }
-    let (bytes, kind) = cover_store(&state)
+    let (bytes, kind) = cover_store(&user.store)
         .open(game_id, current)
         .await
         .map_err(|error| {
@@ -121,14 +122,15 @@ async fn get_cover(
 /// commit 失败就删掉本次新建的文件；commit 成功才清理已不被引用的旧文件。
 async fn commit_cover_change(
     state: &AppState,
+    user_store: &UserStore,
     game_id: i32,
     staged: Option<StagedCover>,
     source: Option<Option<String>>,
     custom: Option<Option<String>>,
 ) -> Result<CoverVersionResponse, ApiError> {
-    let store = cover_store(state);
+    let store = cover_store(user_store);
     let result = async {
-        let txn = tx::begin(&state.db).await?;
+        let txn = tx::begin(user_store.db()).await?;
         let changed =
             GamesRepository::set_cover_hashes_in_connection(&txn, game_id, source, custom)
                 .await
@@ -144,7 +146,7 @@ async fn commit_cover_change(
     .await;
     match result {
         Ok(cover_version) => {
-            let state_after = GamesRepository::find_cover_state(&state.db, game_id)
+            let state_after = GamesRepository::find_cover_state(user_store.db(), game_id)
                 .await?
                 .ok_or_else(|| {
                     ApiError::new(StatusCode::NOT_FOUND, "game_not_found", "game not found")
@@ -173,7 +175,7 @@ async fn commit_cover_change(
 }
 
 async fn stage_image(
-    state: &AppState,
+    user_store: &UserStore,
     game_id: i32,
     bytes: &[u8],
 ) -> Result<StagedCover, ApiError> {
@@ -191,7 +193,7 @@ async fn stage_image(
             "unsupported image",
         )
     })?;
-    if GamesRepository::find_cover_state(&state.db, game_id)
+    if GamesRepository::find_cover_state(user_store.db(), game_id)
         .await?
         .is_none()
     {
@@ -201,7 +203,7 @@ async fn stage_image(
             "game not found",
         ));
     }
-    cover_store(state)
+    cover_store(user_store)
         .put(game_id, bytes, kind)
         .await
         .map_err(|error| {
@@ -214,28 +216,36 @@ async fn stage_image(
 }
 
 async fn put_custom_cover(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     Path(game_id): Path<i32>,
     body: Bytes,
 ) -> Result<Json<CoverVersionResponse>, ApiError> {
     // 写档到清理整段持锁，见 CoverStore::lock_game
-    let _guard = cover_store(&state).lock_game(game_id).await;
-    let staged = stage_image(&state, game_id, &body).await?;
+    let _guard = cover_store(&user.store).lock_game(game_id).await;
+    let staged = stage_image(&user.store, game_id, &body).await?;
     let hash = staged.hash.clone();
     Ok(Json(
-        commit_cover_change(&state, game_id, Some(staged), None, Some(Some(hash))).await?,
+        commit_cover_change(
+            &state,
+            &user.store,
+            game_id,
+            Some(staged),
+            None,
+            Some(Some(hash)),
+        )
+        .await?,
     ))
 }
 
 async fn delete_custom_cover(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     Path(game_id): Path<i32>,
 ) -> Result<Json<CoverVersionResponse>, ApiError> {
-    let _guard = cover_store(&state).lock_game(game_id).await;
+    let _guard = cover_store(&user.store).lock_game(game_id).await;
     Ok(Json(
-        commit_cover_change(&state, game_id, None, None, Some(None)).await?,
+        commit_cover_change(&state, &user.store, game_id, None, None, Some(None)).await?,
     ))
 }
 
@@ -260,15 +270,15 @@ fn download_candidates(url: &str) -> Vec<String> {
 }
 
 async fn set_source_cover(
-    _user: AuthUser,
+    user: AuthUser,
     State(state): State<AppState>,
     Path(game_id): Path<i32>,
     Json(body): Json<SourceCoverBody>,
 ) -> Result<Json<CoverVersionResponse>, ApiError> {
     let Some(url) = body.url.filter(|u| !u.trim().is_empty()) else {
-        let _guard = cover_store(&state).lock_game(game_id).await;
+        let _guard = cover_store(&user.store).lock_game(game_id).await;
         return Ok(Json(
-            commit_cover_change(&state, game_id, None, Some(None), None).await?,
+            commit_cover_change(&state, &user.store, game_id, None, Some(None), None).await?,
         ));
     };
     // 网络下载在写入 transaction 之外完成，不占用 SQLite 的写锁
@@ -291,12 +301,19 @@ async fn set_source_cover(
         {
             Ok(response) if (200..300).contains(&response.status) => {
                 // 下载在锁外完成（可能很慢），只有写档到清理这一段持锁
-                let _guard = cover_store(&state).lock_game(game_id).await;
-                let staged = stage_image(&state, game_id, &response.body).await?;
+                let _guard = cover_store(&user.store).lock_game(game_id).await;
+                let staged = stage_image(&user.store, game_id, &response.body).await?;
                 let hash = staged.hash.clone();
                 return Ok(Json(
-                    commit_cover_change(&state, game_id, Some(staged), Some(Some(hash)), None)
-                        .await?,
+                    commit_cover_change(
+                        &state,
+                        &user.store,
+                        game_id,
+                        Some(staged),
+                        Some(Some(hash)),
+                        None,
+                    )
+                    .await?,
                 ));
             }
             Ok(response) => last_error = Some(format!("HTTP {}", response.status)),
