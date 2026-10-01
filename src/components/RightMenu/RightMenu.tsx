@@ -38,7 +38,7 @@ import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame } from "@/hooks/queries/useGames";
 import { handleOpenFolder } from "@/services/fs/fileDialog";
-import { platformCapabilities } from "@/services/platform";
+import { isWebRuntime, platformCapabilities } from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import { useGamePlayStore } from "@/store/gamePlayStore";
 import type { GameData } from "@/types";
@@ -86,11 +86,15 @@ const RightMenu: React.FC<RightMenuProps> = ({
 	/**
 	 * 删除游戏操作，带删除确认弹窗
 	 */
-	const handleDeleteGame = async () => {
+	const handleDeleteGame = async ({
+		deleteCloud,
+	}: {
+		deleteCloud: boolean;
+	}) => {
 		try {
 			setIsDeleting(true);
 			onClose();
-			await deleteGameMutation.mutateAsync(id);
+			await deleteGameMutation.mutateAsync({ gameId: id, deleteCloud });
 			setSelectedGameId(null);
 		} catch (error) {
 			console.error("删除游戏失败:", error);
@@ -125,6 +129,7 @@ const RightMenu: React.FC<RightMenuProps> = ({
 				open={openAlert}
 				setOpen={setOpenAlert}
 				onConfirm={handleDeleteGame}
+				cloudOption={isWebRuntime()}
 				isLoading={isDeleting}
 			/>
 

@@ -51,3 +51,23 @@ export async function getScanSizes(): Promise<Record<string, number>> {
 		"Scan sizes",
 	);
 }
+
+/**
+ * 把游戏对应的 TeleDrive 文件移到垃圾桶（可在 TeleDrive 还原）。
+ * 必须在删除游戏记录之前调用：失败时记录还在，使用者可以重试。
+ */
+export async function trashCloudGames(
+	gameIds: number[],
+): Promise<{ trashed: number }> {
+	return readJson(
+		await authenticatedFetch(
+			`${import.meta.env.BASE_URL}api/scan/cloud-trash`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ game_ids: gameIds }),
+			},
+		),
+		"Cloud trash",
+	);
+}

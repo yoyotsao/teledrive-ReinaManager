@@ -13,6 +13,7 @@ import { AlertConfirmBox } from "@/components/AlertBox";
 import { CollectionPickerDialog } from "@/components/Collection";
 import { useDeleteGames } from "@/hooks/queries/useGames";
 import { snackbar } from "@/providers/snackBar";
+import { isWebRuntime } from "@/services/platform";
 
 function handleBatchModeChange(
 	enabled: boolean,
@@ -68,11 +69,18 @@ export const CardsBatchBar: React.FC<CardsBatchBarProps> = ({
 		onSelectionChange(gameIds);
 	};
 
-	const handleDeleteGames = async () => {
+	const handleDeleteGames = async ({
+		deleteCloud,
+	}: {
+		deleteCloud: boolean;
+	}) => {
 		if (selectedCount === 0) return;
 
 		try {
-			await deleteGamesMutation.mutateAsync(selectedVisibleGameIds);
+			await deleteGamesMutation.mutateAsync({
+				gameIds: selectedVisibleGameIds,
+				deleteCloud,
+			});
 			onDeleteSuccess();
 			handleBatchModeChange(false, onBatchModeChange, onSelectionClear);
 			setDeleteDialogOpen(false);
@@ -220,6 +228,7 @@ export const CardsBatchBar: React.FC<CardsBatchBarProps> = ({
 				open={deleteDialogOpen}
 				setOpen={setDeleteDialogOpen}
 				onConfirm={handleDeleteGames}
+				cloudOption={isWebRuntime()}
 				isLoading={deleteGamesMutation.isPending}
 				title={t("components.Toolbar.Batch.deleteTitle", "批量删除游戏")}
 				message={t("components.Toolbar.Batch.deleteMessage", {

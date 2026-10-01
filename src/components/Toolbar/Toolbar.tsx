@@ -296,10 +296,14 @@ export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 	/**
 	 * 删除游戏操作
 	 */
-	const handleDeleteGame = async () => {
+	const handleDeleteGame = async ({
+		deleteCloud,
+	}: {
+		deleteCloud: boolean;
+	}) => {
 		try {
 			setIsDeleting(true);
-			await deleteGameMutation.mutateAsync(id);
+			await deleteGameMutation.mutateAsync({ gameId: id, deleteCloud });
 			setSelectedGameId(null);
 			navigate(-1);
 		} catch (error) {
@@ -327,6 +331,7 @@ export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 				open={openAlert}
 				setOpen={setOpenAlert}
 				onConfirm={handleDeleteGame}
+				cloudOption={isWebRuntime()}
 				isLoading={isDeleting}
 			/>
 		</>

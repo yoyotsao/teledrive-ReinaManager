@@ -50,6 +50,8 @@ Adapter 只处理本数据源的差异。混合搜索、优先级合并、写入
 
 待确认清单（`GET /game/api/scan/pending`）只含仍是扫描占位的条目：`id_type` 已不是 `custom`、名称与文件夹名不同，或填了其他自定义字段（简介、开发商、标签等）的条目视为用户已手动处理，不再列入，也不会被重新扫描覆盖。详情页的文件大小来自 `GET /game/api/scan/sizes`（读 TeleDrive 列表，取 `file_hash` 尾端记录的真实长度），文件夹型游戏没有大小。
 
+删除游戏时可勾选「同时将 TeleDrive 云端文件移到垃圾桶」（默认不勾选，仅网页版）：前端先调用 `POST /game/api/scan/cloud-trash`（按 `teledrive_path` 找到 `game/` 下的 zip 与同名文件夹，调用 TeleDrive `DELETE /files/{id}` 移入垃圾桶，可在 TeleDrive 还原），成功后才删除数据库记录；云端失败则记录保留，可重试。
+
 ## 数据形态
 
 | 形态 | 职责 |

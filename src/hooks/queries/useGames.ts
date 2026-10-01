@@ -22,6 +22,7 @@ import type { GameType, SortOption, SortOrder } from "@/services/invoke";
 import { fileService, gameService } from "@/services/invoke";
 import { isWebRuntime } from "@/services/platform";
 import { setSourceCover } from "@/services/web/covers";
+import { trashCloudGames } from "@/services/web/scan";
 import type {
 	BatchOperationResult,
 	FullGameData,
@@ -197,8 +198,17 @@ function useDeleteGame() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (gameId: number) => gameService.deleteGame(gameId),
-		onSuccess: (_, gameId) => {
+		mutationFn: async ({
+			gameId,
+			deleteCloud = false,
+		}: {
+			gameId: number;
+			deleteCloud?: boolean;
+		}) => {
+			if (deleteCloud) await trashCloudGames([gameId]);
+			return gameService.deleteGame(gameId);
+		},
+		onSuccess: (_, { gameId }) => {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, [gameId]);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
@@ -212,8 +222,17 @@ function useDeleteGames() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (gameIds: number[]) => gameService.deleteGames(gameIds),
-		onSuccess: (_, gameIds) => {
+		mutationFn: async ({
+			gameIds,
+			deleteCloud = false,
+		}: {
+			gameIds: number[];
+			deleteCloud?: boolean;
+		}) => {
+			if (deleteCloud) await trashCloudGames(gameIds);
+			return gameService.deleteGames(gameIds);
+		},
+		onSuccess: (_, { gameIds }) => {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, gameIds);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });

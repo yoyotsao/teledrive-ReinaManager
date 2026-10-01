@@ -16,14 +16,16 @@
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProxiedImage } from "@/components/ProxiedImage";
 import {
@@ -71,7 +73,9 @@ interface AlertBoxProps {
 interface AlertConfirmBoxProps {
 	open: boolean;
 	setOpen: (value: boolean) => void;
-	onConfirm: () => void;
+	onConfirm: (options: { deleteCloud: boolean }) => void;
+	/** 显示「同时删除 TeleDrive 云端文件」勾选项（仅删除游戏时使用，默认不勾选） */
+	cloudOption?: boolean;
 	isLoading?: boolean; // 添加加载状态
 	message?: string; // 自定义消息
 	title?: string; // 自定义标题
@@ -195,6 +199,7 @@ export const AlertConfirmBox: React.FC<AlertConfirmBoxProps> = ({
 	open,
 	setOpen,
 	onConfirm,
+	cloudOption = false,
 	isLoading = false,
 	message,
 	title,
@@ -202,6 +207,16 @@ export const AlertConfirmBox: React.FC<AlertConfirmBoxProps> = ({
 	confirmColor = "error",
 }) => {
 	const { t } = useTranslation();
+	const [deleteCloud, setDeleteCloud] = useState(false);
+
+	// 每次重新打开都回到默认不删云端，避免上次的勾选被带进下一次删除
+	useEffect(() => {
+		if (open) setDeleteCloud(false);
+	}, [open]);
+
+	const baseMessage =
+		message ||
+		t("components.AlertBox.deleteGameMessage", "确定要删除该游戏吗？");
 
 	return (
 		<AlertBox
@@ -209,10 +224,45 @@ export const AlertConfirmBox: React.FC<AlertConfirmBoxProps> = ({
 			setOpen={setOpen}
 			title={title || t("components.AlertBox.deleteGameTitle", "删除游戏")}
 			message={
-				message ||
-				t("components.AlertBox.deleteGameMessage", "确定要删除该游戏吗？")
+				cloudOption ? (
+					<>
+						<div>{baseMessage}</div>
+						<Typography variant="body2" className="mt-2">
+							{t(
+								"components.AlertBox.deleteGameScope",
+								"会删除本站中该游戏的记录、封面、游玩统计等数据。",
+							)}
+						</Typography>
+						<FormControlLabel
+							className="mt-2"
+							control={
+								<Checkbox
+									checked={deleteCloud}
+									disabled={isLoading}
+									onChange={(event) => setDeleteCloud(event.target.checked)}
+								/>
+							}
+							label={t(
+								"components.AlertBox.deleteCloudFiles",
+								"同时将 TeleDrive 云端文件移到垃圾桶",
+							)}
+						/>
+						<Typography
+							variant="caption"
+							color="text.secondary"
+							component="div"
+						>
+							{t(
+								"components.AlertBox.deleteCloudHint",
+								"默认不删除。勾选后会把云端扫描加入的游戏在 TeleDrive game 文件夹中的压缩包（及同名文件夹）移到垃圾桶，可在 TeleDrive 还原；手动添加的游戏没有云端文件，不受影响。",
+							)}
+						</Typography>
+					</>
+				) : (
+					baseMessage
+				)
 			}
-			onConfirm={onConfirm}
+			onConfirm={() => onConfirm({ deleteCloud: cloudOption && deleteCloud })}
 			confirmText={
 				confirmText || t("components.AlertBox.confirmDelete", "确认删除")
 			}

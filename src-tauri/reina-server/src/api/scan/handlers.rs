@@ -5,13 +5,13 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use sea_orm::{DatabaseTransaction, SqlErr, TransactionTrait};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use reina_core::database::dto::InsertGameData;
 use reina_core::database::repository::games_repository::{GamesRepository, ScanPendingRow};
 
 use crate::api::auth::AuthUser;
-use crate::api::scan::naming::{ListingRow, derive_game_names, derive_game_sizes};
+use crate::api::scan::naming::{ListingRow, derive_game_names, derive_game_sizes, rows_for_game};
 use crate::api::scan::teledrive::{TeleDriveClient, TeleDriveError};
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -22,6 +22,7 @@ pub fn routes() -> Router<AppState> {
         .route("/scan", post(scan))
         .route("/scan/pending", get(pending))
         .route("/scan/sizes", get(sizes))
+        .route("/scan/cloud-trash", post(cloud_trash))
 }
 
 #[derive(Serialize)]
@@ -148,4 +149,53 @@ async fn sizes(
             .map(|(name, size)| (format!("{}/{name}", state.config.game_folder), size))
             .collect(),
     ))
+}
+
+#[derive(Deserialize)]
+struct CloudTrashRequest {
+    game_ids: Vec<i32>,
+}
+
+#[derive(Serialize)]
+struct CloudTrashResponse {
+    /// 實際移到垃圾桶的項目數（沒有雲端來源的遊戲不計）。
+    trashed: usize,
+}
+
+/// 把遊戲對應的 TeleDrive 檔案移到垃圾桶。要在刪除遊戲之前呼叫：
+/// 先移走雲端檔案、再刪資料庫紀錄，中途失敗時使用者還能重試。
+async fn cloud_trash(
+    user: AuthUser,
+    State(state): State<AppState>,
+    Json(request): Json<CloudTrashRequest>,
+) -> Result<Json<CloudTrashResponse>, ApiError> {
+    let prefix = format!("{}/", state.config.game_folder);
+    let mut names = Vec::new();
+    for id in request.game_ids {
+        let game = GamesRepository::find_by_id(user.store.db(), id).await?;
+        // 只處理掃描建立、位於 game 資料夾底下的路徑，避免任意路徑被帶入
+        if let Some(name) = game
+            .and_then(|game| game.teledrive_path)
+            .and_then(|path| path.strip_prefix(&prefix).map(str::to_string))
+            .filter(|name| !name.is_empty() && !name.contains('/'))
+        {
+            names.push(name);
+        }
+    }
+    if names.is_empty() {
+        return Ok(Json(CloudTrashResponse { trashed: 0 }));
+    }
+
+    let rows = list_game_rows(&state, &user).await?;
+    let base = url::Url::parse(&state.config.teledrive_api)
+        .map_err(|error| ApiError::internal(format!("TELEDRIVE_API 不是合法網址: {error}")))?;
+    let client = TeleDriveClient::new(state.http.clone(), base, user.token.clone());
+    let mut trashed = 0;
+    for name in &names {
+        for row in rows_for_game(&rows, name) {
+            client.trash(&row.file_id).await.map_err(teledrive_error)?;
+            trashed += 1;
+        }
+    }
+    Ok(Json(CloudTrashResponse { trashed }))
 }

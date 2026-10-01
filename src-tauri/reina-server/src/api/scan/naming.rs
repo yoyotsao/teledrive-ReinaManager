@@ -99,6 +99,16 @@ pub fn derive_game_names(rows: &[ListingRow]) -> Vec<String> {
     names
 }
 
+/// 與遊戲名稱對應的所有列（zip 與同名資料夾、舊版重複上傳），名稱不分大小寫。
+/// 刪除雲端檔案時要全部處理，否則留下的那份會在下次掃描又被當成新遊戲。
+pub fn rows_for_game<'a>(rows: &'a [ListingRow], name: &str) -> Vec<&'a ListingRow> {
+    let key = name.to_lowercase();
+    rows.iter()
+        .filter(|row| row.is_dir || is_zip_name(&row.filename))
+        .filter(|row| strip_zip_suffix(&row.filename).to_lowercase() == key)
+        .collect()
+}
+
 /// 遊戲名稱 → zip 的位元組數。資料夾或查不到大小的不收。
 pub fn derive_game_sizes(rows: &[ListingRow]) -> BTreeMap<String, u64> {
     pick_game_rows(rows)
@@ -197,5 +207,17 @@ mod tests {
         assert_eq!(sizes.get("Bar"), Some(&2_000));
         assert!(!sizes.contains_key("Dir"), "資料夾沒有單一大小");
         assert!(!sizes.contains_key("Baz"));
+    }
+
+    #[test]
+    fn 同名的_zip_與資料夾都會被選中() {
+        let rows = vec![
+            row("Foo.zip", false, "2026-01-01T00:00:00"),
+            row("foo", true, "2026-01-02T00:00:00"),
+            row("Foo.txt", false, "2026-01-01T00:00:00"),
+            row("Other.zip", false, "2026-01-01T00:00:00"),
+        ];
+        let picked = rows_for_game(&rows, "Foo");
+        assert_eq!(picked.len(), 2);
     }
 }

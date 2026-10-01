@@ -79,6 +79,28 @@ impl TeleDriveClient {
             .map(|row| row.file_id))
     }
 
+    /// 把檔案或資料夾移到 TeleDrive 垃圾桶（可在 TeleDrive 還原，Telegram 訊息保留）。
+    /// 已經不存在視為成功，讓重試安全。
+    pub async fn trash(&self, file_id: &str) -> Result<(), TeleDriveError> {
+        let url = self
+            .base
+            .join(&format!("/api/v1/files/{file_id}"))
+            .map_err(|error| TeleDriveError::Unavailable(error.to_string()))?;
+        let response = self
+            .http
+            .delete(url)
+            .bearer_auth(&self.token)
+            .send()
+            .await
+            .map_err(|error| TeleDriveError::Unavailable(error.to_string()))?;
+        match response.status() {
+            reqwest::StatusCode::UNAUTHORIZED => Err(TeleDriveError::Unauthorized),
+            reqwest::StatusCode::NOT_FOUND => Ok(()),
+            status if status.is_success() => Ok(()),
+            status => Err(TeleDriveError::Unavailable(format!("HTTP {status}"))),
+        }
+    }
+
     pub async fn list_children(&self, parent_id: &str) -> Result<Vec<ListingRow>, TeleDriveError> {
         let mut rows = self
             .get("/api/v1/folders", &[("parent_id", parent_id.to_string())])
@@ -242,5 +264,33 @@ mod tests {
         ));
         let good = TeleDriveClient::new(reqwest::Client::new(), base, "tok".into());
         assert!(good.find_game_folder("game").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn 移到垃圾桶带上_token_且找不到视为成功() {
+        let base = spawn(
+            Router::new().route(
+                "/api/v1/files/{id}",
+                axum::routing::delete(|headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>| async move {
+                    if !auth_ok(&headers) {
+                        return StatusCode::UNAUTHORIZED;
+                    }
+                    if id == "gone" {
+                        StatusCode::NOT_FOUND
+                    } else {
+                        StatusCode::OK
+                    }
+                }),
+            ),
+        )
+        .await;
+        let ok = TeleDriveClient::new(reqwest::Client::new(), base.clone(), "tok".into());
+        ok.trash("abc").await.unwrap();
+        ok.trash("gone").await.unwrap();
+        let bad = TeleDriveClient::new(reqwest::Client::new(), base, "wrong".into());
+        assert!(matches!(
+            bad.trash("abc").await,
+            Err(TeleDriveError::Unauthorized)
+        ));
     }
 }
