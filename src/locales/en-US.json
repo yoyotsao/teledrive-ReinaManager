@@ -2,7 +2,7 @@
 	"app": {
 		"NAVIGATION": {
 			"collection": "Collection",
-			"gameLibrary": "Game Library ",
+			"gameLibrary": "Game Library",
 			"home": "Home",
 			"settings": "Settings",
 			"stats": "Statistics"
@@ -19,15 +19,16 @@
 		"unknownDeveloper": "Unknown Developer"
 	},
 	"common": {
+		"all": "All",
 		"browse": "Browse",
 		"cancel": "Cancel",
 		"changePlayStatus": "Change Play Status",
 		"close": "Close",
 		"confirm": "Confirm",
-		"locale": "en-US",
 		"retry": "Retry",
 		"saving": "Saving...",
 		"today": "Today",
+		"unknown": "Unknown",
 		"yesterday": "Yesterday"
 	},
 	"components": {
@@ -49,7 +50,8 @@
 				"retryLater_other": "{{count}} games could not be looked up right now and will be retried on the next scan.",
 				"start": "Start scan"
 			},
-			"cloudTab": "Cloud scan",
+			"cloudScanTab": "Cloud scan",
+			"cloudTab": "Cloud Collection",
 			"confirm": "Confirm",
 			"developer": "Developer",
 			"dragDropHere": "Drop files here",
@@ -127,6 +129,7 @@
 			"saveNameOnly": "Save Name Only",
 			"scanDepth": "Scan Depth",
 			"scanDepthValue": "{{depth}} levels",
+			"scanFirstLevelExecutables": "Scan launch files",
 			"scanMode": "Scan Mode",
 			"scanModeExecutable": "Executable Scan",
 			"scanModeFirstLevel": "First-level Folders",
@@ -152,6 +155,32 @@
 			"removeFromCategory": "Remove from Current Category",
 			"removeFromCategoryFailed": "Failed to remove from category",
 			"removeFromCategorySuccess": "Removed from current category"
+		},
+		"CloudCollectionImport": {
+			"cancel": "Cancel Task",
+			"cancelled": "Stopped. Retrieved metadata will remain available in this dialog.",
+			"clearVisible": "Clear",
+			"developer": "Developer: {{name}}",
+			"empty": "Select a source and load its collection (to avoid duplicates, do not import collections from multiple sources at the same time!)",
+			"failed": "Failed",
+			"fetchingDetails": "Fetching complete metadata",
+			"imported": "Imported",
+			"importSelected_one": "Import Selected ({{count}})",
+			"importSelected_other": "Import Selected ({{count}})",
+			"load": "Load Collection",
+			"loading": "Loading cloud collection...",
+			"noImportableGames": "No games available to import",
+			"originalName": "Original title: {{name}}",
+			"resultSummary": "Imported {{imported}}, skipped {{skipped}}, failed {{failed}}",
+			"retry": "Retry Failed Items",
+			"search": "Search by name or source ID",
+			"selectionSummary": "Selected {{selected}} / {{total}}",
+			"selectVisible": "Select All",
+			"source": "Collection Source",
+			"status": "Play Status",
+			"success_one": "Imported {{count}} cloud game",
+			"success_other": "Imported {{count}} cloud games",
+			"writingGames": "Writing to game library"
 		},
 		"Collection": {
 			"errors": {
@@ -181,16 +210,18 @@
 			"addTime": "Add Time (Default)",
 			"allGames": "All Games",
 			"allStatuses": "All",
+			"apply": "Apply",
 			"ascending": "Ascending",
 			"bgmRank": "BGM Rank",
 			"cancel": "Cancel",
 			"clearFilters": "Clear filters",
-			"confirm": "Confirm",
 			"customGames": "Custom Games",
 			"descending": "Descending",
 			"filter": "Filter",
+			"invertStatuses": "Invert",
 			"lastPlayed": "Last Played",
 			"localGames": "Local Games",
+			"multiSelect": "Multi-select",
 			"nameSort": "Name Sort",
 			"noTagSuggestions": "No tag suggestions",
 			"onlineGames": "Cloud Games",
@@ -211,10 +242,14 @@
 			"empty": "No matching games found"
 		},
 		"InstallRequest": {
+			"completed": "Game installed successfully",
+			"completedWithActualPath": "The environment-variable path changed, so the actual installation path was saved",
+			"completedWithoutExecutable": "Game files installed. Select the launch executable manually in the game settings",
 			"confirm": "Confirm Installation",
 			"defaultPathSaveFailed": "The installation task was created, but the default path could not be saved: {{error}}",
 			"installPath": "Installation Path",
 			"installPathPlaceholder": "Select directory for game installation",
+			"invalidRequest": "Invalid installation request: {{error}}",
 			"metadataLabel": "Metadata: ",
 			"pathRequired": "Please select or enter an installation path",
 			"preparing": "Preparing installation…",
@@ -269,50 +304,56 @@
 			"selectExecutableRequired": "Please select an executable file",
 			"steamLaunchTargetMissing": "The Steam launch item is invalid. Associate it again.",
 			"steamMonitorPathMissing": "The Steam monitoring folder is missing. Associate the launch item again.",
-			"steamTrackingUnavailable": "The game was handed off to Steam; play tracking is not supported on this platform yet.",
 			"stopFailed": "Failed to stop game:",
 			"stopGame": "Stop Game",
 			"stoppingGame": "Stopping game...",
 			"syncLocalPath": "Sync Local"
 		},
+		"PathInput": {
+			"available": "Path is available",
+			"inspecting": "Checking path…",
+			"linuxHint": "At the start, you can use $HOME, ${HOME}, or ~, for example $HOME/Games",
+			"missing": "The path does not currently exist",
+			"resolvedPath": "Resolved location: {{path}}",
+			"windowsHint": "At the start, you can use environment variables such as %USERPROFILE%, for example %USERPROFILE%\\Games",
+			"wrongType": "The path type does not match this field"
+		},
 		"PathSettingsModal": {
 			"close": "Close",
 			"dbBackupPath": {
-				"note": "Set the save path for database backup files. Leave empty to use the default path (AppData/data/backups), or the program directory in portable mode",
-				"pathLabel": "Backup Save Path",
-				"pathPlaceholder": "Leave empty to use default path",
+				"note": "Set the root directory for database backups. Leave empty to use the default path",
+				"pathPlaceholder": "Database will be backed up to this directory by default",
 				"selectBtn": "Select Directory",
-				"title": "Database Backup Path"
+				"title": "Database Backup Root"
 			},
 			"installRootPath": {
 				"note": "One-click installations from Shionlib and other providers extract games into this directory",
-				"pathLabel": "Game Installation Root",
-				"pathPlaceholder": "Select a directory for installed games",
+				"pathPlaceholder": "Games will be installed in this directory by default",
 				"selectBtn": "Select Directory",
-				"title": "One-click Installation Directory"
+				"title": "Game Installation Root"
 			},
 			"lePath": {
 				"note": "Set the executable file path for LE region switching software, used for region switching when launching games",
-				"pathLabel": "LE Region Software Path",
-				"pathPlaceholder": "Select LE region software executable",
+				"pathPlaceholder": "Select executable named LEProc",
 				"selectBtn": "Select File",
 				"title": "LE Region Software Path"
 			},
 			"magpiePath": {
 				"note": "Set the executable file path for Magpie software, used for game screen magnification",
-				"pathLabel": "Magpie Software Path",
-				"pathPlaceholder": "Select Magpie software executable",
+				"pathPlaceholder": "Select executable named Magpie",
 				"selectBtn": "Select File",
 				"title": "Magpie Software Path"
 			},
-			"saveError": "Failed to save path settings: {{error}}",
+			"saveFieldError": "Failed to save {{field}}: {{error}}",
 			"savePath": {
-				"moveBackupWarning": "Backup path saved, but failed to migrate old backups: {{error}}",
-				"note": "Set the root directory path for game save backups. Leave empty to use the default path",
-				"pathLabel": "Backup Root Path",
-				"pathPlaceholder": "Leave empty to use default path",
+				"cleanedRecords_one": "Backup path saved and {{count}} invalid backup record was cleaned up",
+				"cleanedRecords_other": "Backup path saved and {{count}} invalid backup records were cleaned up",
+				"moveBackupWarning": "Backup path saved, but the old backup directory could not be fully cleaned up: {{error}}",
+				"note": "Set the root directory for game save backups. Leave empty to use the default path",
+				"pathPlaceholder": "Game saves will be backed up to this directory by default",
 				"selectBtn": "Select Directory",
-				"title": "Game Save Backup Path"
+				"skipMigrationWarning": "Backup path saved, but old backups were not migrated: {{error}}. Old backup location: {{path}}",
+				"title": "Game Save Backup Root"
 			},
 			"selectFileError": "Failed to select file: {{error}}",
 			"selectFolderError": "Failed to select directory: {{error}}",
@@ -349,17 +390,23 @@
 			"viewDetails": "View Details"
 		},
 		"TaskManager": {
+			"archivePassword": "Archive Password",
 			"cancel": "Cancel Task",
 			"close": "Close",
 			"delete": "Delete Task",
 			"empty": "No download tasks",
+			"enterPasswordAndRetry": "Enter Password and Retry",
 			"gameInstallSource": "Game installation · {{provider}} · {{size}}",
 			"goToShionlib": "Push from Shionlib",
 			"installPath": "Installation Path: {{path}}",
 			"openFolder": "Open Folder",
+			"passwordDialogDescription": "Enter the archive password to continue installation using the downloaded file.",
+			"passwordDialogTitle": "Enter Archive Password",
 			"pause": "Pause",
+			"restoringDownload": "Restoring download…",
 			"resume": "Resume",
 			"retry": "Retry",
+			"retryWithPassword": "Retry with Password",
 			"title": "Download Tasks"
 		},
 		"Toolbar": {
@@ -422,6 +469,12 @@
 			"themeLight": "Light",
 			"themeSystem": "System"
 		},
+		"ToolIntegrationModal": {
+			"defaultEnabled": "Enable by default for new games",
+			"pathRequired": "Save the tool path before enabling this default.",
+			"saveError": "Failed to save tool settings: {{error}}",
+			"title": "Tool Integration"
+		},
 		"Tray": {
 			"exit": "Exit",
 			"open": "Open Main Window"
@@ -449,11 +502,25 @@
 				"message_other": "{{count}} games are still running. Exiting the app will not close them, but the recorded playtime for this session will be lost. Do you still want to exit?",
 				"title": "Exit Reminder"
 			},
+			"runningRestartDialog": {
+				"message_one": "{{count}} game is still running. Restarting the app will not close it, but the recorded playtime for this session will be lost. Do you still want to restart?",
+				"message_other": "{{count}} games are still running. Restarting the app will not close them, but the recorded playtime for this session will be lost. Do you still want to restart?",
+				"restartApp": "Restart Anyway",
+				"title": "Restart Reminder"
+			},
+			"runningUpdateDialog": {
+				"message_one": "{{count}} game is still running. Installing the update will restart the app without closing the game, and the recorded playtime for this session will be lost. Do you still want to update?",
+				"message_other": "{{count}} games are still running. Installing the update will restart the app without closing the games, and the recorded playtime for this session will be lost. Do you still want to update?",
+				"title": "Update Reminder",
+				"updateApp": "Update Anyway"
+			},
 			"UpdateModal": {
 				"cancel": "Cancel",
 				"changelog": "Changelog",
-				"checkFailed": "Failed to check for updates: {{error}}",
+				"downloaded": "The update has been downloaded and is ready to install and restart.",
 				"downloading": "Downloading update...",
+				"installAndRestart": "Install and Restart",
+				"installing": "Installing the update and preparing to restart...",
 				"manualUpdate": "Manual Update",
 				"newVersion": "New Version",
 				"portableWarning": "You are using the portable version, so automatic updates may not work. It is recommended to click \"Manual Update\" to download the latest archive and replace the current files (a complete overwrite is required).",
@@ -468,12 +535,21 @@
 		"authFailed": "Authentication failed. Please check your credentials or permissions",
 		"badRequest": "The request parameters are invalid. Please review and try again",
 		"bgmRateLimited": "Bangumi requests are rate limited. The current task has stopped. Please retry manually after 1 hour",
+		"deprecatedSource": "This source is deprecated. Existing data can still be viewed, but searching and updating are no longer available. Please select another available source.",
 		"invalidGameId": "The game ID format is invalid",
 		"invokeFailed": "The application command failed. Please try again later",
 		"metadataNotFound": "No matching metadata was found",
 		"metadataRequestFailed": "Failed to fetch metadata. Please try again later",
 		"mixedSourcesFailed": "All data sources failed to respond",
 		"notFound": "The requested content was not found",
+		"pathEmpty": "Path cannot be empty",
+		"pathInspectionFailed": "Failed to inspect the path",
+		"pathNotAbsolute": "The resolved path must be absolute",
+		"pathVariableCycle": "Environment variables contain a reference cycle",
+		"pathVariableDepth": "Environment variable expansion is too deeply nested",
+		"pathVariableNonUnicode": "The environment variable is not valid text",
+		"pathVariableSyntax": "Invalid path variable syntax",
+		"pathVariableUndefined": "The path uses an undefined environment variable",
 		"requestFailed": "The request failed. Please try again later",
 		"requestRateLimited": "Too many requests. Please try again later",
 		"responseParseFailed": "Failed to parse the response. Please try again later",
@@ -525,6 +601,9 @@
 			"weekPlayTime": "This Week"
 		}
 	},
+	"metadata": {
+		"deprecatedSourceLabel": "{{source}} (deprecated)"
+	},
 	"pages": {
 		"Collection": {
 			"breadcrumb": {
@@ -562,6 +641,12 @@
 				"renameFailed": "Failed to rename: {{error}}"
 			},
 			"gamesCount": "games",
+			"gameSort": {
+				"manual": "Manual order",
+				"manualHint": "Uses your saved manual order. Clear search and filters to reorder by dragging.",
+				"saveFailed": "Could not save the order. Please try again.",
+				"search": "Search games in this category"
+			},
 			"noCategoriesHint": "No categories in current group",
 			"noGamesInCategory": "No games in current category",
 			"noMatchingGames": "No matching games found",
@@ -576,11 +661,15 @@
 			"addTime": "Added Time",
 			"backup": "Save Data",
 			"Backup": {
+				"alternateRestoreWarning": "The backup name differs from the configured save path. To avoid overwriting the wrong location, it was restored to {{restoredPath}}. The configured path remains {{configuredPath}}; please verify it.",
 				"autoSave": "Auto Backup",
 				"backupFailed": "Backup failed",
 				"backupHistory": "Backup History",
 				"backupSuccess": "Backup created successfully",
 				"backupTime": "Backup Time",
+				"cleanupWarning": "Backup cleanup warning",
+				"clearRecord": "Clear record only",
+				"clearSaveDataPath": "Clear save data path",
 				"confirmDelete": "Are you sure you want to delete backup",
 				"confirmDeleteSuffix": "? This action cannot be undone.",
 				"confirmRestore": "Are you sure you want to restore the backup",
@@ -591,24 +680,32 @@
 				"deleteFailed": "Delete failed",
 				"deleteSuccess": "Backup deleted successfully",
 				"fileSize": "File Size",
+				"inaccessibleFileCleanupMessage": "The backup file cannot be accessed or deleted and may still exist. Clear only the database record anyway?",
 				"invalidMaxBackups": "Invalid maximum backups value",
+				"legacyDirectoryBackup": "Legacy directory backup",
 				"manualBackup": "Manual Backup",
 				"maxBackups": "Maximum Backups",
+				"missingFileCleanupMessage": "The backup file does not exist. Clear only the database record?",
 				"noBackups": "No backup records",
 				"openBackupFolder": "Open Backup Folder",
 				"openBackupFolderFailed": "Failed to open backup folder",
-				"openSaveDataFolder": "Open Save Data Folder",
-				"openSaveDataFolderFailed": "Failed to open save data folder",
-				"pathRequired": "Please select a save data folder first",
+				"openSaveDataFolder": "Open Save Data Location",
+				"openSaveDataFolderFailed": "Failed to open save data location",
+				"pathRequired": "Please select a save data path first",
+				"recordCleanupFailed": "Failed to clear backup record",
+				"recordCleanupSuccess": "Backup record cleared",
+				"recordCleanupTitle": "Clear backup record",
 				"restoreBackup": "Restore Backup",
 				"restoreBackupTitle": "Restore Save Data",
 				"restoreFailed": "Failed to restore",
 				"restoreSuccess": "Save data restored successfully",
-				"saveDataPath": "Save Data Folder Path",
-				"savePathSettings": "Save Path Settings",
+				"rootedV2Backup": "Rooted V2 save backup",
+				"savePathSettings": "Save Path",
 				"saveSettings": "Save Backup Settings",
 				"saving": "Saving...",
-				"selectSaveDataFolder": "Select Save Data Folder",
+				"selectSaveDataDirectory": "Select a save data folder",
+				"selectSaveDataFile": "Select a save data file",
+				"selectSaveDataPath": "Please select a save data file or folder",
 				"setPathForRestore": "Please set save data path first to restore backup",
 				"settings": "Backup Settings",
 				"settingsSaved": "Backup settings saved successfully",
@@ -669,10 +766,8 @@
 				"clipboardPreviewSelected": "Image imported from clipboard, will take effect after saving",
 				"closeSourceCoverDialog": "Close",
 				"confirm": "Confirm",
-				"coverAndBasicInfo": "Cover and Basic Info",
 				"coverTooLarge": "Cover must be 10 MB or smaller",
 				"customGameName": "Custom Game Name",
-				"descriptionAndTags": "Description and Tags",
 				"developer": "Developer",
 				"developerHelperText": "The game's developer or production group name",
 				"developerPlaceholder": "Enter developer name",
@@ -694,8 +789,10 @@
 				"releaseDateHelperText": "The game's original release date",
 				"removeCustomCover": "Remove Custom Cover",
 				"resetSourceCover": "Reset to Auto",
-				"saveAllChanges": "Save All Changes",
+				"saveGameInfo": "Save Game Info",
 				"saveGameInfoFailed": "Failed to save game info",
+				"saveLaunchSettings": "Save Launch Settings",
+				"saveLaunchSettingsFailed": "Failed to save launch settings",
 				"saving": "Saving...",
 				"scanningSteamLibrary": "Scanning Steam launch items...",
 				"scanSteamLibrary": "Rescan Steam Launch Items",
@@ -706,6 +803,8 @@
 				"selectImageFailed": "Failed to select image",
 				"selectLocalImage": "Local Image",
 				"selectSourceCover": "Source Cover",
+				"selectSourceSummary": "Choose from Sources",
+				"selectSourceSummaryTitle": "Choose Game Description",
 				"selectSteamLaunchItem": "Select {{name}}",
 				"sourceCoverAuto": "Source cover: Auto",
 				"sourceCoverAutoRule": "Auto rule: {{rule}}",
@@ -718,9 +817,12 @@
 				"steamLaunchItemRequired": "Select a Steam launch item",
 				"steamMonitorPathRequired": "Steam launch requires a valid game directory for play tracking",
 				"summary": "Summary",
-				"summaryHelperText": "A short description of the game or story outline",
+				"summaryCharacterCount": "{{length}} characters",
+				"summaryHelperText": "A detailed description of the game (drag the bottom-right corner to resize)",
 				"summaryPlaceholder": "Enter game summary...",
-				"tags": "Tags"
+				"tags": "Tags",
+				"unsavedChanges": "Unsaved",
+				"useSourceSummary": "Use This Description"
 			},
 			"gameRanking": "Game Ranking",
 			"gameStats": "Game Stats",
@@ -863,10 +965,8 @@
 				"autoBackupOnExit": "Auto backup on exit",
 				"autoBackupOnExitDescription": "When enabled, the database is backed up when the application exits normally. Also backing up custom covers may delay exit.",
 				"autoIncludeCovers": "Also back up custom covers",
-				"autoMinIntervalHelp": "Use 0 to back up every time you exit",
-				"autoMinIntervalHours": "Minimum interval (hours)",
 				"autoNever": "Never backed up automatically",
-				"autoRetentionCount": "Maximum auto backups (copies)",
+				"autoRetentionCount": "Maximum auto backup batches",
 				"backing": "Backing up...",
 				"backingCovers": "Backing up covers...",
 				"backup": "Backup Database",
@@ -877,18 +977,23 @@
 				"coverBackupError": "Custom cover backup failed: {{error}}",
 				"coverBackupFailed": "Failed to backup custom covers",
 				"coverBackupSuccess": "Custom covers backup successful: {{path}}",
+				"exitMinIntervalHelp": "Use 0 to back up every time you exit",
+				"exitMinIntervalHours": "Minimum exit backup interval (hours)",
 				"importError": "Failed to import database: {{error}}",
 				"importFailed": "Import failed",
 				"importing": "Importing...",
 				"importSuccess": "Database imported successfully. Custom covers were backed up and cover cache was cleared. The application will restart automatically.",
 				"lastAutoBackup": "Last auto backup: {{time}}",
-				"lastAutoBackupError": "Last auto backup failed: {{error}}",
+				"lastAutoBackupNotice": "Last auto backup notice: {{error}}",
 				"noCoversToBackup": "No custom covers to backup",
 				"openFolder": "Open Backup Folder",
 				"openFolderError": "Failed to open backup folder: {{error}}",
 				"openFolderFailed": "Failed to open folder",
 				"restore": "Restore Database",
 				"restoreWarning": "Restoring database will overwrite existing data. Custom covers will be backed up first and cover cache will be cleared to avoid cover mismatches. The application will restart automatically after import.",
+				"scheduledBackup": "Scheduled auto backup",
+				"scheduledBackupDescription": "Back up periodically while the application is running or in the tray. An overdue backup runs about 60 seconds after startup.",
+				"scheduledIntervalHours": "Scheduled backup interval (hours)",
 				"title": "Data Backup and Restore"
 			},
 			"dev": {
@@ -912,8 +1017,13 @@
 				"reloginRequired": "Hikarinagi login has expired. Please log in again.",
 				"tokenExpiresAt": "Token expires at: {{date}}",
 				"tokenExpiryUnknown": "Token expiry unknown",
+				"upgradePermission": "Update Authorization for Full Import",
 				"userId": "User ID: {{id}}"
 			},
+			"importCloudCollection": "Import Cloud Collection",
+			"interfaceZoom": "Interface zoom",
+			"interfaceZoomDescription": "You can also use Ctrl + Plus/Minus or Ctrl + the mouse wheel.",
+			"interfaceZoomError": "Failed to change interface zoom",
 			"language": "Language",
 			"linuxLaunchCommand": {
 				"commandLabel": "Launch Command",
@@ -946,7 +1056,7 @@
 				"title": "NSFW Settings"
 			},
 			"pathSettings": {
-				"note": "Configure paths for game save backups, database backups, LE region software, Magpie software, etc.",
+				"note": "Configure game installation, save backup, and database backup paths.",
 				"openModal": "Open Path Settings",
 				"title": "Path Settings"
 			},
@@ -968,7 +1078,9 @@
 				"storage": "Paths & Backup",
 				"storageDescription": "Configure local paths, and run data backup or restore.",
 				"system": "System",
-				"systemDescription": "Manage startup, logs, close behavior, and time tracking mode."
+				"systemDescription": "Manage startup, logs, close behavior, and time tracking mode.",
+				"toolIntegration": "Tool Integration",
+				"toolIntegrationDescription": "Configure LE and Magpie paths and defaults for new games."
 			},
 			"silentStartup": "Silent Startup",
 			"silentStartupDescription": "Start without showing the main window and keep the app in the system tray on every launch.",
@@ -998,6 +1110,10 @@
 				"title": "Game Time Tracking Mode"
 			},
 			"tokenPlaceholder": "Please enter your BGM TOKEN",
+			"toolIntegration": {
+				"openModal": "Open Tool Integration Settings",
+				"title": "LE and Magpie"
+			},
 			"vndbData": {
 				"title": "VNDB Data Settings"
 			},

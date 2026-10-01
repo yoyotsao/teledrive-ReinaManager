@@ -33,6 +33,7 @@ import { useSingleGameAddActions } from "@/hooks/features/games/useGameMetadataF
 import { useMetadataSearchFlow } from "@/hooks/features/games/useMetadataSearchFlow";
 import { useAddGame } from "@/hooks/queries/useGames";
 import { useAllSettings } from "@/hooks/queries/useSettings";
+import { isDeprecatedSource } from "@/metadata/constants";
 import type { GameRuntimeInsertOptions } from "@/metadata/data/metadata";
 import { showGameAddedSuccess } from "@/providers/snackBar";
 import {
@@ -60,6 +61,7 @@ import {
 	defaultAddModalTab,
 } from "./addModalTabs";
 import BulkImportTab, { type BulkDropBatch } from "./BulkImportTab";
+import CloudCollectionTab from "./CloudCollectionTab";
 import CloudScanTab from "./CloudScanTab";
 import GameSelectDialog from "./GameSelectDialog";
 import MixedSourceConfirmDialog from "./MixedSourceConfirmDialog";
@@ -77,6 +79,7 @@ const REQUEST_TIMEOUT_MS = 100000; // 请求超时时间
 const ERROR_DISPLAY_DURATION_MS = 5000; // 错误提示显示时长
 const DEFAULT_SCAN_DEPTH = 3;
 const DEFAULT_SCAN_MODE: GameScanMode = "executable";
+const DEFAULT_SCAN_FIRST_LEVEL_EXECUTABLES = false;
 
 type SingleLaunchSelection =
 	| { kind: "none" }
@@ -143,6 +146,7 @@ const AddModal: React.FC = () => {
 		openAddModal,
 		closeAddModal,
 		setAddModalPath,
+		cloudCollectionImportSource,
 	} = useStore(
 		useShallow((s) => ({
 			apiSource: s.apiSource,
@@ -153,18 +157,25 @@ const AddModal: React.FC = () => {
 			openAddModal: s.openAddModal,
 			closeAddModal: s.closeAddModal,
 			setAddModalPath: s.setAddModalPath,
+			cloudCollectionImportSource: s.cloudCollectionImportSource,
 		})),
 	);
 	const [formText, setFormText] = useState("");
 	const [error, setError] = useState("");
 	const [customLoading, setCustomLoading] = useState(false);
 	const [addMode, setAddMode] = useState<AddGameMode>("mixed");
+	const isSourceDeprecated =
+		addMode === "single" && isDeprecatedSource(apiSource);
 	const [bulkApiSource, setBulkApiSource] = useState<SourceType>();
 	const [scanMode, setScanMode] = useState<GameScanMode>(DEFAULT_SCAN_MODE);
 	const [scanMaxDepth, setScanMaxDepth] = useState(DEFAULT_SCAN_DEPTH);
+	const [scanFirstLevelExecutables, setScanFirstLevelExecutables] = useState(
+		DEFAULT_SCAN_FIRST_LEVEL_EXECUTABLES,
+	);
 	const [activeTab, setActiveTab] = useState<AddModalTab>(
 		defaultAddModalTab(isWeb),
 	);
+	const [cloudBusy, setCloudBusy] = useState(false);
 	const [bulkDropQueue, setBulkDropQueue] = useState<BulkDropBatch[]>([]);
 	const [launchSelection, setLaunchSelection] = useState<SingleLaunchSelection>(
 		{ kind: "none" },
@@ -196,13 +207,16 @@ const AddModal: React.FC = () => {
 	useEffect(() => {
 		if (addModalOpen) {
 			previousFocus.current = document.activeElement as HTMLElement;
+			if (cloudCollectionImportSource && !isWeb) {
+				setActiveTab("collection");
+			}
 			return;
 		}
 
 		if (previousFocus.current) {
 			previousFocus.current.focus();
 		}
-	}, [addModalOpen]);
+	}, [addModalOpen, cloudCollectionImportSource, isWeb]);
 
 	const handleAddGame = useCallback(
 		async (gameData: GameMetadataDraft) => {
@@ -221,7 +235,10 @@ const AddModal: React.FC = () => {
 		onError: showError,
 	});
 	const isBusy =
-		customLoading || metadataSearchFlow.isSearching || isAddingGame;
+		customLoading ||
+		metadataSearchFlow.isSearching ||
+		isAddingGame ||
+		cloudBusy;
 
 	const applyLaunchSelection = useCallback(
 		(selection: LaunchFileSelection) => {
@@ -335,6 +352,7 @@ const AddModal: React.FC = () => {
 		setBulkDropQueue([]);
 		setAddModalPath("");
 		setError("");
+		setCloudBusy(false);
 	}, [invalidateSingleDrop, isWeb, metadataSearchFlow, setAddModalPath]);
 
 	const handleCloseModal = useCallback(() => {
@@ -359,6 +377,7 @@ const AddModal: React.FC = () => {
 	 * - 单一数据源的名称搜索使用列表选择弹窗，并在选择后直接添加。
 	 */
 	const handleSubmit = async () => {
+		if (isSourceDeprecated) return;
 		if (isBusy) return;
 		const { controller, withAbort } = createAbortableRunner();
 		if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -439,7 +458,7 @@ const AddModal: React.FC = () => {
 				slotProps={{
 					paper: {
 						sx:
-							activeTab === "bulk"
+							activeTab !== "single"
 								? {
 										height: "min(88vh, 920px)",
 										display: "flex",
@@ -471,7 +490,9 @@ const AddModal: React.FC = () => {
 									? t("components.AddModal.singleTab", "单个添加")
 									: tab === "bulk"
 										? t("components.AddModal.bulkTab", "批量导入")
-										: t("components.AddModal.cloudTab", "雲端掃描")
+										: tab === "collection"
+											? t("components.AddModal.cloudTab", "云端收藏")
+											: t("components.AddModal.cloudScanTab", "云端扫描")
 							}
 							disabled={isBusy}
 						/>
@@ -575,22 +596,33 @@ const AddModal: React.FC = () => {
 						/>
 					</Stack>
 				</DialogContent>
-				{/* 桌面版 bulk 始終掛載；網頁版完全不 mount 本機 service。 */}
+				{/* 桌面版 bulk 与云端收藏始终挂载，通过 hidden 保持状态；网页版完全不 mount 本机 service。 */}
 				{!isWeb && (
-					<BulkImportTab
-						hidden={activeTab !== "bulk"}
-						onClose={handleCloseModal}
-						addMode={addMode}
-						onAddModeChange={setAddMode}
-						bulkApiSource={resolvedBulkApiSource}
-						onBulkApiSourceChange={setBulkApiSource}
-						scanMode={scanMode}
-						onScanModeChange={setScanMode}
-						scanMaxDepth={scanMaxDepth}
-						onScanMaxDepthChange={setScanMaxDepth}
-						dropBatch={bulkDropQueue[0]}
-						onDropBatchHandled={handleBulkDropBatchHandled}
-					/>
+					<>
+						<BulkImportTab
+							hidden={activeTab !== "bulk"}
+							onClose={handleCloseModal}
+							addMode={addMode}
+							onAddModeChange={setAddMode}
+							bulkApiSource={resolvedBulkApiSource}
+							onBulkApiSourceChange={setBulkApiSource}
+							scanMode={scanMode}
+							onScanModeChange={setScanMode}
+							scanMaxDepth={scanMaxDepth}
+							onScanMaxDepthChange={setScanMaxDepth}
+							scanFirstLevelExecutables={scanFirstLevelExecutables}
+							onScanFirstLevelExecutablesChange={setScanFirstLevelExecutables}
+							dropBatch={bulkDropQueue[0]}
+							onDropBatchHandled={handleBulkDropBatchHandled}
+						/>
+						<CloudCollectionTab
+							hidden={activeTab !== "collection"}
+							open={addModalOpen}
+							initialSource={cloudCollectionImportSource ?? undefined}
+							onBusyChange={setCloudBusy}
+							onClose={handleCloseModal}
+						/>
+					</>
 				)}
 				{isWeb && (
 					<Box
@@ -621,7 +653,7 @@ const AddModal: React.FC = () => {
 						<Button
 							variant="contained"
 							onClick={handleSubmit}
-							disabled={formText === "" || isBusy}
+							disabled={formText === "" || isBusy || isSourceDeprecated}
 							startIcon={isBusy ? <CircularProgress size={20} /> : null}
 						>
 							{isBusy

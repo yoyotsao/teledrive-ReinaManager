@@ -15,9 +15,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { join } from "pathe";
 import { serverKey } from "@/hooks/queries/serverKeys";
-import { getSavedataBackupPath } from "@/services/fs/pathCache";
 import { createGameSavedataBackup } from "@/services/fs/savedataBackup";
 import { savedataService } from "@/services/invoke";
 import type { SavedataRecord } from "@/types";
@@ -45,7 +43,6 @@ interface DeleteBackupParams {
 }
 
 interface RestoreBackupParams {
-	gameId: number;
 	backup: SavedataRecord;
 	savePath: string;
 }
@@ -122,11 +119,28 @@ function useDeleteBackup() {
 
 	return useMutation({
 		mutationFn: async ({ backup }: DeleteBackupParams) => {
-			// 直接调用后端二合一接口，同时删除文件和数据库记录
-			await savedataService.deleteBackup(backup.id);
+			return savedataService.deleteBackup(backup.id);
 		},
 		onSettled: (_, __, variables) => {
 			// 无论成功失败都刷新备份列表
+			queryClient.invalidateQueries({
+				queryKey: saveDataKeys.backups(variables.gameId),
+			});
+			queryClient.invalidateQueries({
+				queryKey: saveDataKeys.backupCount(variables.gameId),
+			});
+		},
+	});
+}
+
+function useDeleteBackupRecord() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: async ({ backup }: DeleteBackupParams) => {
+			return savedataService.deleteBackupRecord(backup.id);
+		},
+		onSettled: (_, __, variables) => {
 			queryClient.invalidateQueries({
 				queryKey: saveDataKeys.backups(variables.gameId),
 			});
@@ -142,13 +156,9 @@ function useDeleteBackup() {
  */
 function useRestoreBackup() {
 	return useMutation({
-		mutationFn: async ({ gameId, backup, savePath }: RestoreBackupParams) => {
-			// 获取备份文件完整路径
-			const savedataBackupPath = await getSavedataBackupPath(gameId);
-			const backupFilePath = join(savedataBackupPath, backup.file);
-
-			// 恢复备份
-			await savedataService.restoreBackup(backupFilePath, savePath);
+		mutationFn: async ({ backup, savePath }: RestoreBackupParams) => {
+			// 恢复备份，并将后端确定的实际恢复路径返回给页面
+			return savedataService.restoreBackup(backup.id, savePath);
 		},
 	});
 }
@@ -162,6 +172,7 @@ export function useSaveDataResources(gameId: number) {
 
 	const createBackupMutation = useCreateBackup();
 	const deleteBackupMutation = useDeleteBackup();
+	const deleteBackupRecordMutation = useDeleteBackupRecord();
 	const restoreBackupMutation = useRestoreBackup();
 
 	return {
@@ -171,6 +182,7 @@ export function useSaveDataResources(gameId: number) {
 		// mutations
 		createBackupMutation,
 		deleteBackupMutation,
+		deleteBackupRecordMutation,
 		restoreBackupMutation,
 	};
 }

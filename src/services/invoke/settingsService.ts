@@ -20,10 +20,30 @@ export interface UserSettings {
 	install_root_path?: string | null;
 	le_path?: string | null;
 	magpie_path?: string | null;
+	default_le_launch: boolean;
+	default_magpie: boolean;
 }
 
 export interface ProxyConfig {
 	url: string;
+}
+
+export type SavedataBackupMigrationStatus = "completed" | "saved_with_warning";
+
+export interface SavedataBackupMigrationFailure {
+	source_path?: string | null;
+	target_path?: string | null;
+	message: string;
+}
+
+export interface SavedataBackupRootMigrationResult {
+	status: SavedataBackupMigrationStatus;
+	old_path?: string | null;
+	new_path?: string | null;
+	message: string;
+	failures: SavedataBackupMigrationFailure[];
+	residue_path?: string | null;
+	cleaned_record_count: number;
 }
 
 class SettingsService extends BaseService {
@@ -57,8 +77,24 @@ class SettingsService extends BaseService {
 		});
 	}
 
+	async changeSavedataBackupRoot(
+		newPath: string,
+	): Promise<SavedataBackupRootMigrationResult> {
+		return this.invoke<SavedataBackupRootMigrationResult>(
+			"change_savedata_backup_root",
+			{ newPath },
+		);
+	}
+
 	async updateProxyConfig(config: ProxyConfig): Promise<void> {
 		return this.invoke<void>("update_proxy_config", { config });
+	}
+
+	/**
+	 * 获取 Windows 系统代理启用状态
+	 */
+	async getSystemProxyStatus(): Promise<boolean> {
+		return this.invoke<boolean>("get_system_proxy_status");
 	}
 
 	async bgmOAuthStartLogin(): Promise<string> {

@@ -2,7 +2,7 @@
 	"app": {
 		"NAVIGATION": {
 			"collection": "コレクション",
-			"gameLibrary": "ゲームライブラリ ",
+			"gameLibrary": "ゲームライブラリ",
 			"home": "ホーム",
 			"settings": "設定",
 			"stats": "統計"
@@ -19,15 +19,16 @@
 		"unknownDeveloper": "不明な開発者"
 	},
 	"common": {
+		"all": "すべて",
 		"browse": "参照",
 		"cancel": "キャンセル",
 		"changePlayStatus": "プレイ状態を変更",
 		"close": "閉じる",
 		"confirm": "確認",
-		"locale": "ja-JP",
 		"retry": "再試行",
 		"saving": "保存中...",
 		"today": "今日",
+		"unknown": "不明",
 		"yesterday": "昨日"
 	},
 	"components": {
@@ -47,7 +48,8 @@
 				"retryLater_other": "{{count}} 件のゲームを一時的に取得できませんでした。次回のスキャンで自動的に再試行します。",
 				"start": "スキャン開始"
 			},
-			"cloudTab": "クラウドスキャン",
+			"cloudScanTab": "クラウドスキャン",
+			"cloudTab": "クラウドコレクション",
 			"confirm": "確認",
 			"developer": "開発者",
 			"dragDropHere": "ファイルをここにドロップ",
@@ -121,6 +123,7 @@
 			"saveNameOnly": "名前のみ保存",
 			"scanDepth": "スキャン深度",
 			"scanDepthValue": "{{depth}} 階層",
+			"scanFirstLevelExecutables": "起動ファイルをスキャン",
 			"scanMode": "スキャンモード",
 			"scanModeExecutable": "実行ファイルスキャン",
 			"scanModeFirstLevel": "第1階層フォルダー",
@@ -133,7 +136,7 @@
 			"searchName": "検索名",
 			"selectExe": "起動ファイルを選択",
 			"selectFolderHint": "ルートフォルダーを選択してスキャンを開始",
-			"selectRootFolder": "ルートフォルダを選択",
+			"selectRootFolder": "ルートフォルダーを選択",
 			"status": "状態",
 			"statusError": "エラー",
 			"statusMatched": "一致済み",
@@ -145,6 +148,30 @@
 			"removeFromCategory": "現在のカテゴリから削除",
 			"removeFromCategoryFailed": "カテゴリからの削除に失敗しました",
 			"removeFromCategorySuccess": "現在のカテゴリから削除しました"
+		},
+		"CloudCollectionImport": {
+			"cancel": "タスクをキャンセル",
+			"cancelled": "停止しました。取得済みのメタデータはこのダイアログ内に保持されます。",
+			"clearVisible": "クリア",
+			"developer": "開発元：{{name}}",
+			"empty": "ソースを選択してコレクションを読み込んでください（重複を防ぐため、複数ソースのコレクションを同時にインポートしないでください！）",
+			"failed": "失敗",
+			"fetchingDetails": "完全なメタデータを取得中",
+			"imported": "インポート済み",
+			"importSelected_other": "選択項目をインポート（{{count}}）",
+			"load": "コレクションを読み込む",
+			"loading": "クラウドコレクションを読み込み中...",
+			"noImportableGames": "インポート可能なゲームはありません",
+			"originalName": "原題：{{name}}",
+			"resultSummary": "インポート {{imported}} 件、スキップ {{skipped}} 件、失敗 {{failed}} 件",
+			"retry": "失敗した項目を再試行",
+			"search": "名前またはソース ID で検索",
+			"selectionSummary": "{{selected}} / {{total}} 件を選択",
+			"selectVisible": "すべて選択",
+			"source": "コレクションソース",
+			"status": "プレイ状況",
+			"success_other": "{{count}} 件のクラウドゲームをインポートしました",
+			"writingGames": "ゲームライブラリに書き込み中"
 		},
 		"Collection": {
 			"errors": {
@@ -171,16 +198,18 @@
 			"addTime": "追加時間(デフォルト)",
 			"allGames": "すべてのゲーム",
 			"allStatuses": "すべて",
+			"apply": "適用",
 			"ascending": "昇順",
 			"bgmRank": "BGMランキング",
 			"cancel": "キャンセル",
 			"clearFilters": "フィルターをクリア",
-			"confirm": "確認",
 			"customGames": "カスタムゲーム",
 			"descending": "降順",
 			"filter": "フィルター",
+			"invertStatuses": "反転",
 			"lastPlayed": "最近プレイ",
 			"localGames": "ローカルゲーム",
+			"multiSelect": "複数選択",
 			"nameSort": "名前ソート",
 			"noTagSuggestions": "タグ候補がありません",
 			"onlineGames": "クラウドゲーム",
@@ -201,10 +230,14 @@
 			"empty": "条件に一致するゲームが見つかりません"
 		},
 		"InstallRequest": {
+			"completed": "ゲームのインストールに成功しました",
+			"completedWithActualPath": "環境変数のパスが変わったため、実際のインストール先を保存しました",
+			"completedWithoutExecutable": "ゲームファイルのインストールが完了しました。ゲーム設定で起動プログラムを手動で設定してください",
 			"confirm": "インストールを確認",
 			"defaultPathSaveFailed": "インストールタスクは作成されましたが、既定のパスを保存できませんでした：{{error}}",
 			"installPath": "インストールパス",
 			"installPathPlaceholder": "ゲームのインストールに使用するディレクトリを選択",
+			"invalidRequest": "インストールリクエストが無効です：{{error}}",
 			"metadataLabel": "メタデータ：",
 			"pathRequired": "インストールパスを選択または入力してください",
 			"preparing": "インストールを準備しています…",
@@ -259,50 +292,55 @@
 			"selectExecutableRequired": "実行ファイルを選択してください",
 			"steamLaunchTargetMissing": "Steam の起動項目が無効です。再度関連付けてください",
 			"steamMonitorPathMissing": "Steam ゲームの監視フォルダがありません。再度関連付けてください",
-			"steamTrackingUnavailable": "Steam に起動を引き渡しました。このプラットフォームでは今回のプレイを追跡できません",
 			"stopFailed": "ゲーム停止に失敗しました:",
 			"stopGame": "ゲームを停止",
 			"stoppingGame": "ゲームを停止中...",
 			"syncLocalPath": "ローカル同期"
 		},
+		"PathInput": {
+			"available": "パスは使用可能です",
+			"inspecting": "パスを確認中…",
+			"linuxHint": "パス先頭では $HOME、${HOME}、~ が使えます。例: $HOME/Games",
+			"missing": "現在このパスは存在しません",
+			"resolvedPath": "実際の場所：{{path}}",
+			"windowsHint": "パス先頭では %USERPROFILE% などの環境変数が使えます。例: %USERPROFILE%\\Games",
+			"wrongType": "パスの種類がこの項目と一致しません"
+		},
 		"PathSettingsModal": {
 			"close": "閉じる",
 			"dbBackupPath": {
-				"note": "データベースバックアップファイルの保存パスを設定します。空のままにするとデフォルトパス（AppData/data/backups）、またはポータブルモードのプログラムディレクトリが使用されます",
-				"pathLabel": "バックアップ保存パス",
-				"pathPlaceholder": "空のままにするとデフォルトパスを使用",
+				"note": "データベースバックアップのルートディレクトリを設定します。空のままにするとデフォルトパスが使用されます",
+				"pathPlaceholder": "データベースはデフォルトでこのディレクトリにバックアップされます",
 				"selectBtn": "ディレクトリを選択",
-				"title": "データベースバックアップパス"
+				"title": "データベースバックアップルート"
 			},
 			"installRootPath": {
 				"note": "書音などからのワンクリックインストールは、このディレクトリへゲームを展開します",
-				"pathLabel": "ゲームインストールルート",
-				"pathPlaceholder": "ゲームのインストール先を選択",
+				"pathPlaceholder": "ゲームはデフォルトでこのディレクトリにインストールされます",
 				"selectBtn": "ディレクトリを選択",
-				"title": "ワンクリックインストール先"
+				"title": "ゲームインストールルート"
 			},
 			"lePath": {
 				"note": "ゲーム起動時の地域切り替えに使用するLE地域切り替えソフトウェアの実行ファイルパスを設定します",
-				"pathLabel": "LE地域ソフトウェアパス",
-				"pathPlaceholder": "LE地域ソフトウェアの実行ファイルを選択",
+				"pathPlaceholder": "LEProc という名前の実行ファイルを選択",
 				"selectBtn": "ファイルを選択",
 				"title": "LE地域ソフトウェアパス"
 			},
 			"magpiePath": {
 				"note": "ゲーム画面の拡大機能に使用するMagpieソフトウェアの実行ファイルパスを設定します",
-				"pathLabel": "Magpieソフトウェアパス",
-				"pathPlaceholder": "Magpieソフトウェアの実行ファイルを選択",
+				"pathPlaceholder": "Magpie という名前の実行ファイルを選択",
 				"selectBtn": "ファイルを選択",
 				"title": "Magpieソフトウェアパス"
 			},
-			"saveError": "パス設定の保存に失敗しました：{{error}}",
+			"saveFieldError": "{{field}}の保存に失敗しました：{{error}}",
 			"savePath": {
-				"moveBackupWarning": "バックアップパスは保存されましたが、古いバックアップの移行に失敗しました：{{error}}",
-				"note": "ゲームセーブデータのバックアップルートディレクトリパスを設定します。空のままにするとデフォルトパスが使用されます",
-				"pathLabel": "バックアップルートパス",
-				"pathPlaceholder": "空のままにするとデフォルトパスを使用",
+				"cleanedRecords_other": "バックアップパスを保存し、無効なバックアップ記録を{{count}}件削除しました",
+				"moveBackupWarning": "バックアップパスは保存されましたが、古いバックアップディレクトリを完全に削除できませんでした：{{error}}",
+				"note": "ゲームセーブデータのバックアップルートディレクトリを設定します。空のままにするとデフォルトパスが使用されます",
+				"pathPlaceholder": "ゲームセーブデータはデフォルトでこのディレクトリにバックアップされます",
 				"selectBtn": "ディレクトリを選択",
-				"title": "ゲームセーブバックアップパス"
+				"skipMigrationWarning": "バックアップパスを保存しましたが、旧バックアップは移行されませんでした：{{error}}。旧バックアップの場所：{{path}}",
+				"title": "ゲームセーブバックアップルート"
 			},
 			"selectFileError": "ファイルの選択に失敗しました：{{error}}",
 			"selectFolderError": "ディレクトリの選択に失敗しました：{{error}}",
@@ -339,17 +377,23 @@
 			"viewDetails": "詳細を表示"
 		},
 		"TaskManager": {
+			"archivePassword": "展開パスワード",
 			"cancel": "タスクをキャンセル",
 			"close": "閉じる",
 			"delete": "タスクを削除",
 			"empty": "ダウンロードタスクはありません",
+			"enterPasswordAndRetry": "パスワードを入力して再試行",
 			"gameInstallSource": "ゲームインストール · {{provider}} · {{size}}",
 			"goToShionlib": "Shionlibからプッシュ",
 			"installPath": "インストール先：{{path}}",
 			"openFolder": "フォルダを開く",
+			"passwordDialogDescription": "圧縮ファイルのパスワードを入力すると、ダウンロード済みのファイルを使用してインストールを続行します。",
+			"passwordDialogTitle": "展開パスワードを入力",
 			"pause": "一時停止",
+			"restoringDownload": "ダウンロードを再開しています…",
 			"resume": "再開",
 			"retry": "再試行",
+			"retryWithPassword": "パスワードで再試行",
 			"title": "ダウンロードタスク"
 		},
 		"Toolbar": {
@@ -407,6 +451,12 @@
 			"themeLight": "ライト",
 			"themeSystem": "システムに従う"
 		},
+		"ToolIntegrationModal": {
+			"defaultEnabled": "新しいゲームで既定で有効にする",
+			"pathRequired": "既定で有効にする前に、ツールのパスを保存してください。",
+			"saveError": "ツール設定の保存に失敗しました：{{error}}",
+			"title": "ツール連携"
+		},
 		"Tray": {
 			"exit": "終了",
 			"open": "メインウィンドウを開く"
@@ -433,11 +483,23 @@
 				"message_other": "現在 {{count}} 件のゲームが実行中です。アプリを終了してもゲーム自体は閉じませんが、このセッションのプレイ時間記録は失われます。それでも終了しますか？",
 				"title": "終了の確認"
 			},
+			"runningRestartDialog": {
+				"message_other": "現在 {{count}} 件のゲームが実行中です。アプリを再起動してもゲーム自体は閉じませんが、このセッションのプレイ時間記録は失われます。それでも再起動しますか？",
+				"restartApp": "そのまま再起動",
+				"title": "再起動の確認"
+			},
+			"runningUpdateDialog": {
+				"message_other": "現在 {{count}} 件のゲームが実行中です。アップデートをインストールするとアプリは再起動します。ゲーム自体は閉じませんが、このセッションのプレイ時間記録は失われます。それでもアップデートしますか？",
+				"title": "アップデートの確認",
+				"updateApp": "そのままアップデート"
+			},
 			"UpdateModal": {
 				"cancel": "キャンセル",
 				"changelog": "変更履歴",
-				"checkFailed": "アップデートの確認に失敗しました: {{error}}",
+				"downloaded": "アップデートをダウンロードしました。インストールして再起動できます。",
 				"downloading": "アップデートをダウンロード中...",
+				"installAndRestart": "インストールして再起動",
+				"installing": "アップデートをインストールして再起動を準備しています...",
 				"manualUpdate": "手動アップデート",
 				"newVersion": "新しいバージョン",
 				"portableWarning": "ポータブル版を使用しているため、自動アップデートが機能しない場合があります。「手動アップデート」をクリックして最新バージョンのアーカイブをダウンロードし、現在のファイルを置き換えてください（完全な上書きが必要です）。",
@@ -452,12 +514,21 @@
 		"authFailed": "認証に失敗しました。資格情報または権限を確認してください",
 		"badRequest": "リクエスト内容が不正です。確認して再試行してください",
 		"bgmRateLimited": "Bangumi のリクエストが制限されています。現在のタスクは停止しました。1時間後に手動で再試行してください",
+		"deprecatedSource": "このデータソースは廃止されました。保存済みのデータは引き続き表示できますが、検索や更新はできません。他の利用可能なデータソースを選択してください。",
 		"invalidGameId": "ゲーム ID の形式が不正です",
 		"invokeFailed": "アプリ内部コマンドの呼び出しに失敗しました。後でもう一度お試しください",
 		"metadataNotFound": "対応するメタデータが見つかりませんでした",
 		"metadataRequestFailed": "メタデータの取得に失敗しました。後でもう一度お試しください",
 		"mixedSourcesFailed": "すべてのデータソースへのリクエストに失敗しました",
 		"notFound": "対象の内容が見つかりませんでした",
+		"pathEmpty": "パスを空にすることはできません",
+		"pathInspectionFailed": "パスの状態を確認できませんでした",
+		"pathNotAbsolute": "解決後のパスは絶対パスである必要があります",
+		"pathVariableCycle": "環境変数が循環参照しています",
+		"pathVariableDepth": "環境変数の再帰展開が深すぎます",
+		"pathVariableNonUnicode": "環境変数が有効なテキストではありません",
+		"pathVariableSyntax": "パス変数の構文が無効です",
+		"pathVariableUndefined": "未定義の環境変数がパスに含まれています",
 		"requestFailed": "リクエストに失敗しました。後でもう一度お試しください",
 		"requestRateLimited": "リクエストが多すぎます。後でもう一度お試しください",
 		"responseParseFailed": "レスポンスの解析に失敗しました。後でもう一度お試しください",
@@ -507,6 +578,9 @@
 			"weekPlayTime": "今週"
 		}
 	},
+	"metadata": {
+		"deprecatedSourceLabel": "{{source}}（廃止済み）"
+	},
 	"pages": {
 		"Collection": {
 			"breadcrumb": {
@@ -544,6 +618,12 @@
 				"renameFailed": "名前の変更に失敗しました：{{error}}"
 			},
 			"gamesCount": "ゲーム",
+			"gameSort": {
+				"manual": "手動順",
+				"manualHint": "保存した手動順で表示します。検索と絞り込みを解除すると、ドラッグで並べ替えられます。",
+				"saveFailed": "並び順を保存できませんでした。もう一度お試しください。",
+				"search": "このカテゴリのゲームを検索"
+			},
 			"noCategoriesHint": "現在のグループにカテゴリがありません",
 			"noGamesInCategory": "現在のカテゴリにゲームがありません",
 			"noMatchingGames": "条件に一致するゲームが見つかりません",
@@ -558,11 +638,15 @@
 			"addTime": "追加時間",
 			"backup": "セーブデータ",
 			"Backup": {
+				"alternateRestoreWarning": "バックアップ名が現在のセーブパスと一致しません。誤った場所への上書きを避けるため、{{restoredPath}} に復元しました。現在の設定は {{configuredPath}} のままです。確認してください。",
 				"autoSave": "自動バックアップ",
 				"backupFailed": "バックアップに失敗しました",
 				"backupHistory": "バックアップ履歴",
 				"backupSuccess": "バックアップが正常に作成されました",
 				"backupTime": "バックアップ時刻",
+				"cleanupWarning": "バックアップのクリーンアップに関する警告",
+				"clearRecord": "記録のみ削除",
+				"clearSaveDataPath": "セーブデータパスをクリア",
 				"confirmDelete": "バックアップを削除してもよろしいですか",
 				"confirmDeleteSuffix": "？この操作は取り消せません。",
 				"confirmRestore": "バックアップを復元してもよろしいですか",
@@ -573,24 +657,32 @@
 				"deleteFailed": "削除に失敗しました",
 				"deleteSuccess": "バックアップが正常に削除されました",
 				"fileSize": "ファイルサイズ",
+				"inaccessibleFileCleanupMessage": "バックアップファイルにアクセスまたは削除できず、まだ存在する可能性があります。それでもデータベース記録のみ削除しますか？",
 				"invalidMaxBackups": "無効な最大バックアップ数",
+				"legacyDirectoryBackup": "旧形式のフォルダーバックアップ",
 				"manualBackup": "手動バックアップ",
 				"maxBackups": "最大バックアップ数",
+				"missingFileCleanupMessage": "バックアップファイルが存在しません。データベース記録のみ削除しますか？",
 				"noBackups": "バックアップ記録がありません",
 				"openBackupFolder": "バックアップフォルダを開く",
 				"openBackupFolderFailed": "バックアップフォルダを開くのに失敗しました",
-				"openSaveDataFolder": "セーブデータフォルダを開く",
-				"openSaveDataFolderFailed": "セーブデータフォルダを開くのに失敗しました",
-				"pathRequired": "まずセーブデータフォルダを選択してください",
+				"openSaveDataFolder": "セーブデータの場所を開く",
+				"openSaveDataFolderFailed": "セーブデータの場所を開くのに失敗しました",
+				"pathRequired": "まずセーブデータのパスを選択してください",
+				"recordCleanupFailed": "バックアップ記録の削除に失敗しました",
+				"recordCleanupSuccess": "バックアップ記録を削除しました",
+				"recordCleanupTitle": "バックアップ記録を削除",
 				"restoreBackup": "バックアップを復元",
 				"restoreBackupTitle": "セーブデータを復元",
 				"restoreFailed": "復元に失敗しました",
 				"restoreSuccess": "セーブデータが正常に復元されました",
-				"saveDataPath": "セーブデータフォルダパス",
-				"savePathSettings": "セーブパス設定",
+				"rootedV2Backup": "新形式のセーブデータバックアップ",
+				"savePathSettings": "セーブパス",
 				"saveSettings": "バックアップ設定を保存",
 				"saving": "保存中...",
-				"selectSaveDataFolder": "セーブデータフォルダを選択",
+				"selectSaveDataDirectory": "セーブデータフォルダを選択",
+				"selectSaveDataFile": "セーブデータファイルを選択",
+				"selectSaveDataPath": "セーブデータのファイルまたはフォルダを選択してください",
 				"setPathForRestore": "バックアップを復元するには、まずセーブデータパスを設定してください",
 				"settings": "バックアップ設定",
 				"settingsSaved": "バックアップ設定が正常に保存されました",
@@ -651,10 +743,8 @@
 				"clipboardPreviewSelected": "クリップボードから画像を取り込みました。保存後に有効になります",
 				"closeSourceCoverDialog": "閉じる",
 				"confirm": "確定",
-				"coverAndBasicInfo": "カバーと基本情報",
 				"coverTooLarge": "カバー画像は 10 MB 以下にしてください",
 				"customGameName": "カスタムゲーム名",
-				"descriptionAndTags": "説明とタグ",
 				"developer": "開発者",
 				"developerHelperText": "ゲームの開発者または製作グループ名",
 				"developerPlaceholder": "開発者名を入力",
@@ -676,8 +766,10 @@
 				"releaseDateHelperText": "ゲームの元のリリース日",
 				"removeCustomCover": "カスタムカバーを削除",
 				"resetSourceCover": "自動に戻す",
-				"saveAllChanges": "すべての変更を保存",
+				"saveGameInfo": "ゲーム情報を保存",
 				"saveGameInfoFailed": "ゲーム情報の保存に失敗しました",
+				"saveLaunchSettings": "起動設定を保存",
+				"saveLaunchSettingsFailed": "起動設定の保存に失敗しました",
 				"saving": "保存中...",
 				"scanningSteamLibrary": "Steam 起動項目をスキャンしています...",
 				"scanSteamLibrary": "Steam 起動項目を再スキャン",
@@ -688,6 +780,8 @@
 				"selectImageFailed": "画像の選択に失敗しました",
 				"selectLocalImage": "ローカル画像",
 				"selectSourceCover": "データソースカバー",
+				"selectSourceSummary": "データソースから選択",
+				"selectSourceSummaryTitle": "ゲーム紹介を選択",
 				"selectSteamLaunchItem": "{{name}} を選択",
 				"sourceCoverAuto": "データソースカバー：自動",
 				"sourceCoverAutoRule": "自動ルール：{{rule}}",
@@ -700,9 +794,12 @@
 				"steamLaunchItemRequired": "Steam 起動項目を選択してください",
 				"steamMonitorPathRequired": "Steam 起動のプレイ追跡には有効なゲームディレクトリが必要です",
 				"summary": "概要",
-				"summaryHelperText": "ゲームの短い説明またはストーリー概要",
+				"summaryCharacterCount": "{{length}}文字",
+				"summaryHelperText": "ゲームの詳細紹介（右下をドラッグしてサイズを調整できます）",
 				"summaryPlaceholder": "ゲーム概要を入力...",
-				"tags": "タグ"
+				"tags": "タグ",
+				"unsavedChanges": "未保存",
+				"useSourceSummary": "この紹介を使用"
 			},
 			"gameRanking": "ゲームランキング",
 			"gameStats": "ゲーム統計",
@@ -844,10 +941,8 @@
 				"autoBackupOnExit": "終了時に自動バックアップ",
 				"autoBackupOnExitDescription": "有効にすると、アプリが正常終了する際にデータベースを自動でバックアップします。カスタムカバーも同時にバックアップすると、終了に時間がかかる場合があります。",
 				"autoIncludeCovers": "カスタムカバーもバックアップ",
-				"autoMinIntervalHelp": "0 にすると終了ごとにバックアップします",
-				"autoMinIntervalHours": "最小間隔（時間）",
 				"autoNever": "自動バックアップ未実行",
-				"autoRetentionCount": "自動バックアップの最大保持数（件）",
+				"autoRetentionCount": "自動バックアップの最大保持数（バッチ）",
 				"backing": "バックアップ中...",
 				"backingCovers": "カバーをバックアップ中...",
 				"backup": "データベースをバックアップ",
@@ -858,18 +953,23 @@
 				"coverBackupError": "カスタムカバーのバックアップに失敗しました: {{error}}",
 				"coverBackupFailed": "カスタムカバーのバックアップに失敗しました",
 				"coverBackupSuccess": "カスタムカバーのバックアップが成功しました: {{path}}",
+				"exitMinIntervalHelp": "0 にすると終了ごとにバックアップします",
+				"exitMinIntervalHours": "終了時バックアップの最小間隔（時間）",
 				"importError": "データベースのインポートに失敗しました: {{error}}",
 				"importFailed": "インポートに失敗しました",
 				"importing": "インポート中...",
 				"importSuccess": "データベースのインポートが成功しました。カスタムカバーをバックアップし、カバーキャッシュを削除しました。アプリが自動的に再起動します",
 				"lastAutoBackup": "前回の自動バックアップ：{{time}}",
-				"lastAutoBackupError": "前回の自動バックアップ失敗：{{error}}",
+				"lastAutoBackupNotice": "前回の自動バックアップ通知：{{error}}",
 				"noCoversToBackup": "バックアップするカスタムカバーがありません",
 				"openFolder": "バックアップフォルダを開く",
 				"openFolderError": "バックアップフォルダを開くのに失敗しました: {{error}}",
 				"openFolderFailed": "フォルダを開くのに失敗しました",
 				"restore": "データベースを復元",
 				"restoreWarning": "データベースの復元は既存のデータを上書きします。カバーの不一致を避けるため、先にカスタムカバーをバックアップし、カバーキャッシュを削除します。インポート後、アプリは自動的に再起動します。",
+				"scheduledBackup": "定期自動バックアップ",
+				"scheduledBackupDescription": "アプリの実行中またはトレイ常駐中に定期的にバックアップします。期限を過ぎている場合は、起動から約 60 秒後に実行します。",
+				"scheduledIntervalHours": "定期バックアップ間隔（時間）",
 				"title": "データバックアップと復元"
 			},
 			"dev": {
@@ -893,8 +993,13 @@
 				"reloginRequired": "Hikarinagi のログインが無効になりました。再度ログインしてください。",
 				"tokenExpiresAt": "Token の有効期限: {{date}}",
 				"tokenExpiryUnknown": "Token の有効期限は不明です",
+				"upgradePermission": "完全インポート用に権限を更新",
 				"userId": "ユーザー ID: {{id}}"
 			},
+			"importCloudCollection": "クラウドコレクションをインポート",
+			"interfaceZoom": "画面の拡大率",
+			"interfaceZoomDescription": "Ctrl + プラス/マイナス、または Ctrl + マウスホイールでも調整できます。",
+			"interfaceZoomError": "画面の拡大率を変更できませんでした",
 			"language": "言語",
 			"linuxLaunchCommand": {
 				"commandLabel": "起動コマンド",
@@ -927,7 +1032,7 @@
 				"title": "NSFWセット"
 			},
 			"pathSettings": {
-				"note": "ゲームセーブバックアップ、データベースバックアップ、LE地域ソフトウェア、Magpieソフトウェアなどのパスを設定します",
+				"note": "ゲームのインストール先、セーブデータとデータベースのバックアップ先を設定します。",
 				"openModal": "パス設定を開く",
 				"title": "パス設定"
 			},
@@ -949,7 +1054,9 @@
 				"storage": "パスとバックアップ",
 				"storageDescription": "ローカルパスを設定し、データのバックアップと復元を実行します。",
 				"system": "システム",
-				"systemDescription": "起動、ログ、終了動作、時間計測モードを管理します。"
+				"systemDescription": "起動、ログ、終了動作、時間計測モードを管理します。",
+				"toolIntegration": "ツール連携",
+				"toolIntegrationDescription": "LE と Magpie のパスと新しいゲームの既定状態を設定します。"
 			},
 			"silentStartup": "サイレント起動",
 			"silentStartupDescription": "アプリを起動するたびにメインウィンドウを表示せず、システムトレイで実行します。",
@@ -979,6 +1086,10 @@
 				"title": "ゲーム計時モード"
 			},
 			"tokenPlaceholder": "BGM TOKENを入力してください",
+			"toolIntegration": {
+				"openModal": "ツール連携設定を開く",
+				"title": "LE と Magpie"
+			},
 			"vndbData": {
 				"title": "VNDBデータ設定"
 			},

@@ -25,6 +25,7 @@ export interface InstallRequest {
 	url: string;
 	file_name: string;
 	archive_format: string;
+	archive_password?: string | null;
 	size: number;
 	checksum_algo?: "sha256" | "blake3" | null;
 	checksum?: string | null;
@@ -60,6 +61,9 @@ export interface Task {
 	progress_total?: number | null;
 	progress_unit?: string | null;
 	bytes_per_second?: number | null;
+	received_bytes?: number | null;
+	displayed_progress?: number;
+	recovery_target?: number;
 	dedupe_key?: string | null;
 	error_code?: string | null;
 	error_message?: string | null;
@@ -93,6 +97,7 @@ export interface TaskProgressEvent {
 	progress_total?: number | null;
 	progress_unit?: string | null;
 	bytes_per_second?: number | null;
+	received_bytes?: number | null;
 }
 
 export interface GameInstallMetadataRequestedEvent {
@@ -105,6 +110,7 @@ export interface InstallCompletedEvent {
 	result_path: string;
 	executable?: string | null;
 	executable_missing: boolean;
+	used_actual_path: boolean;
 }
 
 export interface InstallFailedEvent {
@@ -139,10 +145,15 @@ class TaskService extends BaseService {
 		return this.invoke<Task[]>("list_tasks");
 	}
 
-	retryTask(taskId: number, payload?: InstallRequest): Promise<Task> {
+	retryTask(
+		taskId: number,
+		payload?: InstallRequest,
+		archivePassword?: string,
+	): Promise<Task> {
 		return this.invoke<Task>("retry_task", {
 			taskId,
 			payload: payload ?? null,
+			archivePassword: archivePassword ?? null,
 		});
 	}
 

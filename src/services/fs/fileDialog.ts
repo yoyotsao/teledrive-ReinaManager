@@ -134,10 +134,11 @@ export async function splitExecutablePath(
 }
 
 export const handleFolder = async (defaultPath: string = "") => {
+	const resolvedDefaultPath = await resolveDialogDefaultPath(defaultPath);
 	const selectedPath = await openDirectory({
 		multiple: false,
 		directory: true,
-		defaultPath: defaultPath,
+		defaultPath: resolvedDefaultPath,
 		filters: [
 			{
 				name: t("utils.handleDirectory.folder", "文件夹"),
@@ -149,15 +150,34 @@ export const handleFolder = async (defaultPath: string = "") => {
 	return selectedPath;
 };
 
-export const handleExeFile = async (defaultPath: string = "") => {
+/** 选择单个存档文件，不限制文件扩展名。 */
+export const handleSaveDataFile = async (defaultPath: string = "") => {
+	const resolvedDefaultPath = await resolveDialogDefaultPath(defaultPath);
 	const selectedPath = await openDirectory({
 		multiple: false,
 		directory: false,
-		defaultPath: defaultPath,
+		defaultPath: resolvedDefaultPath,
+		filters: [
+			{
+				name: t("utils.handleDirectory.allFiles", "所有文件"),
+				extensions: ["*"],
+			},
+		],
+	});
+	if (selectedPath === null) return null;
+	return selectedPath;
+};
+
+export const handleExeFile = async (defaultPath: string = "") => {
+	const resolvedDefaultPath = await resolveDialogDefaultPath(defaultPath);
+	const selectedPath = await openDirectory({
+		multiple: false,
+		directory: false,
+		defaultPath: resolvedDefaultPath,
 		filters: [
 			{
 				name: t("utils.handleDirectory.executable", "可执行文件"),
-				extensions: ["exe", "bat", "cmd"],
+				extensions: ["exe", "bat", "cmd", "sh"],
 			},
 			{
 				name: t("utils.handleDirectory.allFiles", "所有文件"),
@@ -172,7 +192,8 @@ export const handleExeFile = async (defaultPath: string = "") => {
 async function resolveLaunchFileSelection(
 	selectedPath: string,
 ): Promise<LaunchFileSelection> {
-	if (extname(selectedPath).toLowerCase() !== ".url") {
+	const ext = extname(selectedPath).toLowerCase();
+	if (ext !== ".url" && ext !== ".desktop") {
 		return { launchType: "local", path: selectedPath };
 	}
 
@@ -188,14 +209,15 @@ async function resolveLaunchFileSelection(
 export const handleLaunchFile = async (
 	defaultPath: string = "",
 ): Promise<LaunchFileSelection | null> => {
+	const resolvedDefaultPath = await resolveDialogDefaultPath(defaultPath);
 	const selectedPath = await openDirectory({
 		multiple: false,
 		directory: false,
-		defaultPath,
+		defaultPath: resolvedDefaultPath,
 		filters: [
 			{
 				name: t("utils.handleDirectory.launchFile", "启动文件"),
-				extensions: ["exe", "bat", "cmd", "url"],
+				extensions: ["exe", "bat", "cmd", "url", "desktop"],
 			},
 		],
 	});
@@ -203,6 +225,15 @@ export const handleLaunchFile = async (
 
 	return resolveLaunchFileSelection(selectedPath);
 };
+
+async function resolveDialogDefaultPath(path: string): Promise<string> {
+	if (!path.trim()) return "";
+	try {
+		return (await fileService.inspectUserPath(path)).resolved_path;
+	} catch {
+		return "";
+	}
+}
 
 export const handleDroppedPath = async (
 	droppedPath: string,

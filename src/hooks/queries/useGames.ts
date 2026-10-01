@@ -94,12 +94,14 @@ function useGameIdList(
 	gameType: GameType,
 	sortOption: SortOption,
 	sortOrder: SortOrder,
+	enabled = true,
 ) {
 	const { i18n } = useTranslation();
 	const language = i18n.language;
 
 	return useQuery({
 		queryKey: gameKeys.idList({ gameType, sortOption, sortOrder, language }),
+		enabled,
 		queryFn: () =>
 			gameService.getGameIds(gameType, sortOption, sortOrder, language),
 		placeholderData: keepPreviousData,

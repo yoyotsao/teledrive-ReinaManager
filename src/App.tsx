@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import { InstallRequestHandler } from "@/components/InstallRequestHandler";
+import { UiZoom } from "@/components/UiZoom";
 import { WebAuthGate } from "@/components/WebAuthGate";
 import WindowsHandler from "@/components/Windows";
 import { useWebAuthRequired } from "@/hooks/common/useWebAuthRequired";
@@ -54,6 +55,7 @@ const App: React.FC = () => {
 		>
 			<SnackbarUtilsConfigurator />
 			{isWebRuntime() && <ServerVersionSync />}
+			<UiZoom />
 			<ToolpadReactRouterAppProvider navigation={Navigation}>
 				{platformCapabilities.desktopShell && <WindowsHandler />}
 				{platformCapabilities.desktopShell && <InstallRequestHandler />}

@@ -52,21 +52,27 @@ import Tooltip from "@mui/material/Tooltip";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { MouseEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertConfirmBox } from "@/components/AlertBox";
 import { FilterSortModal } from "@/components/FilterSortModal";
 import { LaunchModal } from "@/components/LaunchModal";
-import { PathSettingsModal } from "@/components/PathSettingsModal";
 import { PlayStatusSubmenu } from "@/components/RightMenu/PlayStatusSubmenu";
 import { SelectedGameGuard } from "@/components/SelectedGameGuard";
+import {
+	ToolIntegrationModal,
+	type ToolKind,
+	type ToolPaths,
+} from "@/components/ToolIntegrationModal";
+import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame, useUpdateGame } from "@/hooks/queries/useGames";
 import { useProxiedImageUrl } from "@/hooks/queries/useProxiedImageUrl";
 import { useAllSettings } from "@/hooks/queries/useSettings";
 import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
+import { GameDeletionContext } from "@/providers/GameDeletionProvider";
 import { snackbar } from "@/providers/snackBar";
 import {
 	isWebRuntime,
@@ -76,6 +82,7 @@ import {
 import { useStore } from "@/store/appStore";
 import type { GameData, SourceType } from "@/types";
 import type { PlayStatus } from "@/types/collection";
+import { isWindowsPlatform } from "@/utils/tauriProtocol";
 import { CollectionToolbar } from "./Collection";
 
 type ThemeMode = "light" | "dark" | "system";
@@ -287,7 +294,8 @@ const OpenFolder = ({ selectedGame }: { selectedGame: GameData }) => {
  */
 export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 	const { t } = useTranslation();
-	const setSelectedGameId = useStore((state) => state.setSelectedGameId);
+	const deletion = useContext(GameDeletionContext);
+	const { selectedGame } = useGameById(id);
 	const [openAlert, setOpenAlert] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const deleteGameMutation = useDeleteGame();
@@ -301,14 +309,15 @@ export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 	}: {
 		deleteCloud: boolean;
 	}) => {
+		if (isDeleting || !selectedGame) return;
 		try {
 			setIsDeleting(true);
+			deletion?.setGame(selectedGame);
 			await deleteGameMutation.mutateAsync({ gameId: id, deleteCloud });
-			setSelectedGameId(null);
 			navigate(-1);
 		} catch (error) {
 			console.error("删除游戏失败:", error);
-		} finally {
+			deletion?.setGame(null);
 			setIsDeleting(false);
 			setOpenAlert(false);
 		}
@@ -347,7 +356,12 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 	const { t } = useTranslation();
 	const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 	const open = Boolean(anchorEl);
-	const [pathSettingsModalOpen, setPathSettingsModalOpen] = useState(false);
+	const [toolIntegrationModalOpen, setToolIntegrationModalOpen] =
+		useState(false);
+	const [pendingEnable, setPendingEnable] = useState<{
+		tool: ToolKind;
+		gameId: number;
+	} | null>(null);
 	const { data: settings } = useAllSettings();
 	const hasLePath = Boolean(settings?.le_path);
 	const hasMagpiePath = Boolean(settings?.magpie_path);
@@ -397,7 +411,9 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 					"未设置LE转区软件路径，请先配置路径",
 				),
 			);
-			setPathSettingsModalOpen(true);
+			setPendingEnable({ tool: "le", gameId });
+			setToolIntegrationModalOpen(true);
+			handleClose();
 			return;
 		}
 
@@ -424,7 +440,9 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 					"未设置Magpie软件路径，请先配置路径",
 				),
 			);
-			setPathSettingsModalOpen(true);
+			setPendingEnable({ tool: "magpie", gameId });
+			setToolIntegrationModalOpen(true);
+			handleClose();
 			return;
 		}
 
@@ -435,6 +453,22 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 			});
 		} catch (error) {
 			console.error("更新Magpie放大状态失败:", error);
+		}
+	};
+
+	const handleCloseToolIntegration = async (paths: ToolPaths) => {
+		setToolIntegrationModalOpen(false);
+		setPendingEnable(null);
+		if (!pendingEnable || !paths[pendingEnable.tool]) return;
+		try {
+			await updateGameMutation.mutateAsync({
+				gameId: pendingEnable.gameId,
+				updates: {
+					[pendingEnable.tool === "le" ? "le_launch" : "magpie"]: 1,
+				},
+			});
+		} catch (error) {
+			console.error("配置工具路径后更新游戏启动状态失败:", error);
 		}
 	};
 
@@ -473,24 +507,28 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 						</ListItemText>
 					</MenuItem>
 				))}
-				<MenuItem onClick={handleToggleLeLaunch}>
-					<ListItemIcon>
-						<TurnRightIcon fontSize="small" />
-					</ListItemIcon>
-					<ListItemText>
-						{t("components.Toolbar.leLaunch", "LE转区启动")}
-					</ListItemText>
-					<Switch checked={selectedGame.le_launch === 1} size="small" />
-				</MenuItem>
-				<MenuItem onClick={handleToggleMagpie}>
-					<ListItemIcon>
-						<OpenInFullIcon fontSize="small" />
-					</ListItemIcon>
-					<ListItemText>
-						{t("components.Toolbar.magpieZoom", "Magpie放大")}
-					</ListItemText>
-					<Switch checked={selectedGame.magpie === 1} size="small" />
-				</MenuItem>
+				{isWindowsPlatform && (
+					<MenuItem onClick={handleToggleLeLaunch}>
+						<ListItemIcon>
+							<TurnRightIcon fontSize="small" />
+						</ListItemIcon>
+						<ListItemText>
+							{t("components.Toolbar.leLaunch", "LE转区启动")}
+						</ListItemText>
+						<Switch checked={selectedGame.le_launch === 1} size="small" />
+					</MenuItem>
+				)}
+				{isWindowsPlatform && (
+					<MenuItem onClick={handleToggleMagpie}>
+						<ListItemIcon>
+							<OpenInFullIcon fontSize="small" />
+						</ListItemIcon>
+						<ListItemText>
+							{t("components.Toolbar.magpieZoom", "Magpie放大")}
+						</ListItemText>
+						<Switch checked={selectedGame.magpie === 1} size="small" />
+					</MenuItem>
+				)}
 
 				{/* 游戏状态切换 - 二级菜单 */}
 				<PlayStatusSubmenu
@@ -501,12 +539,13 @@ const MoreButton = ({ selectedGame }: { selectedGame: GameData }) => {
 				/>
 			</Menu>
 
-			{/* 路径设置弹窗 */}
-			<PathSettingsModal
-				open={pathSettingsModalOpen}
-				onClose={() => setPathSettingsModalOpen(false)}
-				inSettingsPage={false}
-			/>
+			{isWindowsPlatform && (
+				<ToolIntegrationModal
+					open={toolIntegrationModalOpen}
+					focusTool={pendingEnable?.tool}
+					onClose={(paths) => void handleCloseToolIntegration(paths)}
+				/>
+			)}
 		</>
 	);
 };

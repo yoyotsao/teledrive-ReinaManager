@@ -63,7 +63,6 @@ export function useUpdatePlayStatus() {
 		mutationFn: updatePlayStatus,
 		onSuccess: (updatedFullGame, { gameId, invalidateScope = "game" }) => {
 			patchGameCaches(queryClient, gameKeys, updatedFullGame);
-			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
 
 			if (invalidateScope === "all") {
 				queryClient.invalidateQueries({

@@ -1,9 +1,6 @@
 use serde::Deserialize;
 use std::sync::{OnceLock, RwLock};
 use std::time::Duration;
-use takanawa_reqwest::{
-    Client as TransferClient, NoProxy as TransferNoProxy, Proxy as TransferProxy,
-};
 use tauri_plugin_http::reqwest::{Client, NoProxy, Proxy};
 
 const GLOBAL_USER_AGENT: &str = concat!(
@@ -23,7 +20,7 @@ pub struct ProxyConfig {
 
 struct HttpClientState {
     client: Client,
-    transfer_client: TransferClient,
+    transfer_client: Client,
     proxy_url: String,
 }
 
@@ -83,16 +80,20 @@ pub(super) fn refresh_system_proxy_clients() -> Result<bool, String> {
     Ok(true)
 }
 
-fn build_transfer_client(proxy_url: &str) -> Result<TransferClient, String> {
-    let mut builder = TransferClient::builder()
+/// 大文件传输专用客户端：不设总超时（由下载引擎的停滞检测负责），并强制
+/// HTTP/1.1 —— HTTP/2 会把多个 Range 请求复用到一条 TCP 连接上，使多连接
+/// 下载在按连接限速的 CDN 上失去意义。
+fn build_transfer_client(proxy_url: &str) -> Result<Client, String> {
+    let mut builder = Client::builder()
+        .http1_only()
         .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
         .read_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
         .user_agent(GLOBAL_USER_AGENT);
 
     if !proxy_url.is_empty() {
-        let proxy = TransferProxy::all(proxy_url)
+        let proxy = Proxy::all(proxy_url)
             .map_err(|error| format!("代理地址无效: {error}"))?
-            .no_proxy(TransferNoProxy::from_string(LOCAL_PROXY_BYPASS));
+            .no_proxy(NoProxy::from_string(LOCAL_PROXY_BYPASS));
         builder = builder.proxy(proxy);
     }
 
@@ -147,10 +148,39 @@ pub fn get_client() -> Client {
         .clone()
 }
 
-pub fn get_transfer_client() -> TransferClient {
+pub fn get_transfer_client() -> Client {
     http_client()
         .read()
         .unwrap_or_else(|error| error.into_inner())
         .transfer_client
         .clone()
+}
+
+/// 检查当前是否存在生效的代理配置（显式代理或系统代理）。
+pub fn has_effective_proxy() -> bool {
+    let guard = http_client().read().unwrap_or_else(|e| e.into_inner());
+    if !guard.proxy_url.is_empty() {
+        return true;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        super::windows::is_system_proxy_enabled()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
+/// 获取 Windows 系统代理启用状态（供前端查询）。
+#[tauri::command]
+pub fn get_system_proxy_status() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        super::windows::is_system_proxy_enabled()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
 }

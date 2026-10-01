@@ -26,6 +26,7 @@ pub struct HikarinagiAuth {
     pub expires_at: Option<i64>,
     pub user_id: Option<i64>,
     pub name: Option<String>,
+    pub scope: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
@@ -49,6 +50,8 @@ pub struct Model {
     pub le_path: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub magpie_path: Option<String>,
+    pub default_le_launch: bool,
+    pub default_magpie: bool,
 }
 
 impl Model {

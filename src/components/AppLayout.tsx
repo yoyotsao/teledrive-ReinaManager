@@ -26,6 +26,7 @@ import {
 } from "@/hooks/common/useScrollRestore";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
 import { useActiveTaskCount } from "@/hooks/queries/useTasks";
+import { GameDeletionProvider } from "@/providers/GameDeletionProvider";
 import { platformCapabilities, publicAssetUrl } from "@/services/platform";
 import { type SelectedCategory, useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
@@ -92,6 +93,20 @@ function DeveloperGameSearchBox({ categoryKey }: { categoryKey: string }) {
 	return <SearchBox scopeGameIds={developerGameIds} applyNsfwFilter={false} />;
 }
 
+function CollectionGameSearchBox() {
+	const value = useStore((s) => s.collectionGameSearch);
+	const setValue = useStore((s) => s.setCollectionGameSearch);
+	const { t } = useTranslation();
+	return (
+		<SearchBox
+			mode="controlled"
+			value={value}
+			onValueChange={setValue}
+			ariaLabel={t("pages.Collection.gameSort.search", "搜索当前分类的游戏")}
+		/>
+	);
+}
+
 type CollectionEntitySearchKind = "groups" | "categories" | "developers";
 
 type CollectionTitleMode =
@@ -101,6 +116,7 @@ type CollectionTitleMode =
 			scrollKey: string;
 	  }
 	| { type: "developer-game-search"; categoryKey: string }
+	| { type: "collection-game-search" }
 	| { type: "none" };
 
 function getCollectionTitleMode(
@@ -122,8 +138,8 @@ function getCollectionTitleMode(
 		};
 	}
 
-	if (selectedCategory !== null) {
-		return { type: "none" };
+	if (selectedCategory?.type === "real") {
+		return { type: "collection-game-search" };
 	}
 
 	switch (currentGroupId) {
@@ -259,6 +275,8 @@ const CustomAppTitle = () => {
 				/>
 			) : collectionTitleMode.type === "developer-game-search" ? (
 				<DeveloperGameSearchBox categoryKey={collectionTitleMode.categoryKey} />
+			) : collectionTitleMode.type === "collection-game-search" ? (
+				<CollectionGameSearchBox />
 			) : null}
 		</Stack>
 	);
@@ -368,29 +386,31 @@ export const Layout: React.FC = () => {
 			{platformCapabilities.desktopShell && (
 				<TaskManagerDialog open={taskManagerOpen} onClose={closeTaskManager} />
 			)}
-			<DashboardLayout
-				slots={{
-					header: Header,
-					sidebarFooter: SidebarFooter,
-				}}
-				defaultSidebarCollapsed={true}
-			>
-				{isLibraries ? (
-					<PageContainer
-						className="max-w-full"
-						sx={{
-							"& > .MuiStack-root > :not(style) ~ :not(style)": {
-								mt: "0 !important",
-							},
-						}}
-					>
+			<GameDeletionProvider>
+				<DashboardLayout
+					slots={{
+						header: Header,
+						sidebarFooter: SidebarFooter,
+					}}
+					defaultSidebarCollapsed={true}
+				>
+					{isLibraries ? (
+						<PageContainer
+							className="max-w-full"
+							sx={{
+								"& > .MuiStack-root > :not(style) ~ :not(style)": {
+									mt: "0 !important",
+								},
+							}}
+						>
+							<Outlet />
+						</PageContainer>
+					) : (
 						<Outlet />
-					</PageContainer>
-				) : (
-					<Outlet />
-				)}
-				<BackToTopButton />
-			</DashboardLayout>
+					)}
+					<BackToTopButton />
+				</DashboardLayout>
+			</GameDeletionProvider>
 		</>
 	);
 };

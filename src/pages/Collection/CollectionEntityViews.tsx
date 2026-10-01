@@ -19,7 +19,6 @@ const CATEGORY_GRID_TEMPLATE_COLUMNS = {
 	md: "repeat(3, 1fr)",
 	lg: "repeat(4, 1fr)",
 };
-const DEVELOPER_CATEGORY_GRID_ROW_HEIGHT = 112;
 const DEVELOPER_CATEGORY_GRID_CLASS =
 	"grid gap-4 pb-4 [grid-template-columns:repeat(var(--collection-category-columns),minmax(0,1fr))]";
 
@@ -113,7 +112,6 @@ function DeveloperCategoryGrid({
 		useVirtuosoGridRestore({
 			columns,
 			itemCount: categories.length,
-			rowHeight: DEVELOPER_CATEGORY_GRID_ROW_HEIGHT,
 			scrollKey,
 		});
 

@@ -1,11 +1,11 @@
 import {
 	DEFAULT_MIXED_SOURCE_KEYS,
-	MIXED_SOURCE_KEYS,
+	REGISTERED_SOURCE_KEYS,
 } from "@/metadata/constants";
 import type { SourceType } from "@/types";
 import { DefaultGroup } from "@/types/collection";
 
-export const APP_STORE_VERSION = 2;
+export const APP_STORE_VERSION = 3;
 
 type AppStorePersistedState = {
 	mixedEnabledSources?: SourceType[];
@@ -17,6 +17,8 @@ type AppStorePersistedState = {
 	selectedCategoryName?: string | null;
 	doubleClickLaunch?: boolean;
 	longPressLaunch?: boolean;
+	autoBackupMinIntervalHours?: number;
+	exitBackupMinIntervalHours?: number;
 };
 
 type SelectedCategoryState =
@@ -30,9 +32,12 @@ function normalizeMixedEnabledSources(
 	if (!sources) return [...DEFAULT_MIXED_SOURCE_KEYS];
 
 	const enabled = new Set(
-		sources.filter((source) => MIXED_SOURCE_KEYS.includes(source)),
+		sources.filter((source) => REGISTERED_SOURCE_KEYS.includes(source)),
 	);
-	const filtered = MIXED_SOURCE_KEYS.filter((source) => enabled.has(source));
+	// 老版本偏好仍保存废弃源；是否发起请求由在线源集合决定。
+	const filtered = REGISTERED_SOURCE_KEYS.filter((source) =>
+		enabled.has(source),
+	);
 	return filtered.length >= DEFAULT_MIXED_SOURCE_KEYS.length
 		? filtered
 		: [...DEFAULT_MIXED_SOURCE_KEYS];
@@ -54,6 +59,10 @@ export function migrateAppStorePersistedState(
 
 	if (version < 2) {
 		migrateCardLaunchSettings(state);
+	}
+
+	if (version < 3) {
+		migrateAutoBackupInterval(state);
 	}
 
 	return state;
@@ -102,4 +111,16 @@ function migrateSelectedCategoryState(state: AppStorePersistedState) {
 function migrateCardLaunchSettings(state: AppStorePersistedState) {
 	delete state.doubleClickLaunch;
 	delete state.longPressLaunch;
+}
+
+function migrateAutoBackupInterval(state: AppStorePersistedState) {
+	if (state.exitBackupMinIntervalHours === undefined) {
+		const previousValue = state.autoBackupMinIntervalHours;
+		state.exitBackupMinIntervalHours =
+			typeof previousValue === "number" && Number.isFinite(previousValue)
+				? Math.max(0, Math.floor(previousValue))
+				: 6;
+	}
+
+	delete state.autoBackupMinIntervalHours;
 }

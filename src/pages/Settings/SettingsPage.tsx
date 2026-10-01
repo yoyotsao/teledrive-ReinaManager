@@ -1,14 +1,17 @@
 import { Breadcrumbs, Link, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import { isTauri } from "@tauri-apps/api/core";
 import { PageContainer } from "@toolpad/core/PageContainer";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { PathSettingsModal } from "@/components/PathSettingsModal";
+import { ToolIntegrationModal } from "@/components/ToolIntegrationModal";
 import { useScrollRestore } from "@/hooks/common/useScrollRestore";
 import { platformCapabilities } from "@/services/platform";
+import { isWindowsPlatform } from "@/utils/tauriProtocol";
 import { AboutSection } from "./AboutSettings";
 import { AccountSettings } from "./AccountSettings";
 import {
@@ -18,12 +21,13 @@ import {
 } from "./DataSourceSettings";
 import {
 	CardClickModeSettings,
+	InterfaceZoomSettings,
 	LanguageSelect,
 	NsfwSettings,
 	StartupPageSettings,
 } from "./GeneralSettings";
 import { DatabaseBackupSettings } from "./MaintenanceSettings";
-import { SettingsDivider, SettingsGroup, SettingsItem } from "./SettingsLayout";
+import { SettingsDivider, SettingsGroup } from "./SettingsLayout";
 import {
 	AutoStartSettings,
 	CloseBtnSettings,
@@ -80,6 +84,8 @@ export const Settings: React.FC = () => {
 	const { t } = useTranslation();
 	useScrollRestore("/settings");
 	const [pathSettingsModalOpen, setPathSettingsModalOpen] = useState(false);
+	const [toolIntegrationModalOpen, setToolIntegrationModalOpen] =
+		useState(false);
 	const [activeSectionId, setActiveSectionId] = useState("account");
 	const pageTitle = t("app.NAVIGATION.settings", "设置");
 	const breadcrumbs = useMemo(
@@ -129,6 +135,12 @@ export const Settings: React.FC = () => {
 				content: (
 					<Box className="space-y-5">
 						<LanguageSelect />
+						{isTauri() && isWindowsPlatform && (
+							<>
+								<SettingsDivider />
+								<InterfaceZoomSettings />
+							</>
+						)}
 						<SettingsDivider />
 						<StartupPageSettings />
 						<SettingsDivider />
@@ -166,6 +178,37 @@ export const Settings: React.FC = () => {
 					</Box>
 				),
 			},
+			...(isWindowsPlatform
+				? [
+						{
+							id: "tool-integration",
+							label: t("pages.Settings.sections.toolIntegration", "工具联动"),
+							description: t(
+								"pages.Settings.sections.toolIntegrationDescription",
+								"配置 LE 转区和 Magpie 的路径及新游戏默认状态。",
+							),
+							content: (
+								<SettingsGroup
+									title={t(
+										"pages.Settings.toolIntegration.title",
+										"LE 转区与 Magpie",
+									)}
+								>
+									<Button
+										variant="outlined"
+										onClick={() => setToolIntegrationModalOpen(true)}
+										className="px-4 py-2"
+									>
+										{t(
+											"pages.Settings.toolIntegration.openModal",
+											"打开工具联动设置",
+										)}
+									</Button>
+								</SettingsGroup>
+							),
+						},
+					]
+				: []),
 			{
 				id: "storage",
 				label: t("pages.Settings.sections.storage", "路径与备份"),
@@ -178,26 +221,18 @@ export const Settings: React.FC = () => {
 					<>
 						<SettingsGroup
 							title={t("pages.Settings.pathSettings.title", "路径设置")}
+							description={t(
+								"pages.Settings.pathSettings.note",
+								"配置游戏安装、存档备份和数据库备份路径。",
+							)}
 						>
-							<SettingsItem
-								stacked
-								title={t(
-									"pages.Settings.pathSettings.openModal",
-									"打开路径设置",
-								)}
-								description={t(
-									"pages.Settings.pathSettings.note",
-									"配置游戏存档备份、数据库备份、LE转区软件、Magpie软件等路径",
-								)}
+							<Button
+								variant="outlined"
+								onClick={() => setPathSettingsModalOpen(true)}
+								className="px-4 py-2"
 							>
-								<Button
-									variant="outlined"
-									onClick={() => setPathSettingsModalOpen(true)}
-									className="px-4 py-2"
-								>
-									{t("pages.Settings.pathSettings.openModal", "打开路径设置")}
-								</Button>
-							</SettingsItem>
+								{t("pages.Settings.pathSettings.openModal", "打开路径设置")}
+							</Button>
 						</SettingsGroup>
 						<SettingsDivider />
 						<DatabaseBackupSettings />
@@ -360,8 +395,13 @@ export const Settings: React.FC = () => {
 			<PathSettingsModal
 				open={pathSettingsModalOpen}
 				onClose={() => setPathSettingsModalOpen(false)}
-				inSettingsPage={true}
 			/>
+			{isWindowsPlatform && (
+				<ToolIntegrationModal
+					open={toolIntegrationModalOpen}
+					onClose={() => setToolIntegrationModalOpen(false)}
+				/>
+			)}
 		</PageContainer>
 	);
 };

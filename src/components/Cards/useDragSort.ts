@@ -8,7 +8,9 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useUpdateCategoryGames } from "@/hooks/queries/useCollections";
+import { useTranslation } from "react-i18next";
+import { useReorderCategoryGames } from "@/hooks/queries/useCollections";
+import { snackbar } from "@/providers/snackBar";
 
 /**
  * 拖拽排序 Hook - 管理拖拽相关状态和逻辑
@@ -21,20 +23,26 @@ export function useDragSort(options: {
 	enabled: boolean;
 }) {
 	const { gameIds, categoryId, enabled } = options;
-	const updateCategoryGamesMutation = useUpdateCategoryGames();
+	const { t } = useTranslation();
+	const reorderCategoryGamesMutation = useReorderCategoryGames();
 
-	const [sortableIds, setSortableIds] = useState(gameIds);
 	const [activeId, setActiveId] = useState<number | null>(null);
-	const isDraggingRef = useRef(false);
-
-	const ids = enabled ? sortableIds : gameIds;
-
-	// 排序模式保留本地顺序，非排序模式直接使用外部数据，避免删除后慢一帧
+	const [pendingOrder, setPendingOrder] = useState<{
+		sourceIds: number[];
+		ids: number[];
+	} | null>(null);
+	// 松手后的第一帧先采用目标顺序，Query 通知到达后交还显示控制权。
+	const ids =
+		enabled && pendingOrder?.sourceIds === gameIds ? pendingOrder.ids : gameIds;
+	const savingRef = useRef(false);
 	useEffect(() => {
-		if (enabled && !isDraggingRef.current) {
-			setSortableIds(gameIds);
-		}
-	}, [enabled, gameIds]);
+		setPendingOrder((order) =>
+			order && order.sourceIds !== gameIds ? null : order,
+		);
+	}, [gameIds]);
+	useEffect(() => {
+		if (!enabled) setActiveId(null);
+	}, [enabled]);
 
 	// 传感器配置
 	const sensors = useSensors(
@@ -48,15 +56,13 @@ export function useDragSort(options: {
 
 	const handleDragStart = useCallback(
 		(event: DragStartEvent) => {
-			if (!enabled) return;
-			isDraggingRef.current = true;
+			if (!enabled || savingRef.current) return;
 			setActiveId(event.active.id as number);
 		},
 		[enabled],
 	);
 
 	const handleDragCancel = useCallback(() => {
-		isDraggingRef.current = false;
 		setActiveId(null);
 	}, []);
 
@@ -64,9 +70,13 @@ export function useDragSort(options: {
 		async (event: DragEndEvent) => {
 			const { active, over } = event;
 			setActiveId(null);
-
-			if (!over || active.id === over.id || !categoryId) {
-				isDraggingRef.current = false;
+			if (
+				!enabled ||
+				savingRef.current ||
+				!over ||
+				active.id === over.id ||
+				!categoryId
+			) {
 				return;
 			}
 
@@ -75,25 +85,30 @@ export function useDragSort(options: {
 
 			if (oldIndex !== -1 && newIndex !== -1) {
 				const newIds = arrayMove(ids, oldIndex, newIndex);
-				setSortableIds(newIds);
+				setPendingOrder({ sourceIds: gameIds, ids: newIds });
 
 				try {
-					await updateCategoryGamesMutation.mutateAsync({
+					savingRef.current = true;
+					await reorderCategoryGamesMutation.mutateAsync({
 						categoryId,
 						gameIds: newIds,
 					});
 				} catch (error) {
+					setPendingOrder(null);
 					console.error("排序更新失败:", error);
-					setSortableIds(ids); // 回滚
+					snackbar.error(
+						t("pages.Collection.gameSort.saveFailed", "排序保存失败，请重试"),
+					);
+				} finally {
+					savingRef.current = false;
 				}
 			}
-
-			isDraggingRef.current = false;
 		},
-		[ids, categoryId, updateCategoryGamesMutation],
+		[gameIds, ids, enabled, categoryId, reorderCategoryGamesMutation, t],
 	);
 
 	return {
+		isSaving: reorderCategoryGamesMutation.isPending,
 		ids,
 		activeId,
 		sensors,

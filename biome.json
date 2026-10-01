@@ -15,7 +15,8 @@
 			"!src-tauri",
 			"!test",
 			"!scripts",
-			"!others"
+			"!others",
+			"!.local/frontend-tests"
 		]
 	},
 	"formatter": {

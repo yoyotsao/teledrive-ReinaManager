@@ -4,6 +4,7 @@ import { queryClient } from "@/providers/queryClient";
 import { snackbar } from "@/providers/snackBar";
 import { settingsService, type UserSettings } from "@/services/invoke";
 import {
+	isOAuthAuthExpired,
 	isOAuthAuthRefreshDue,
 	isRefreshCredentialError,
 	nowUnixSeconds,
@@ -51,6 +52,9 @@ function getReloginMessage() {
 export async function logoutHikarinagiAuth(options?: { notify?: boolean }) {
 	await settingsService.updateSettings({ hikarinagiAuth: null });
 	updateCachedHikarinagiAuth(null);
+	queryClient.removeQueries({
+		queryKey: settingsKeys.hikarinagiCurrentUserProfile(),
+	});
 	await queryClient.invalidateQueries({ queryKey: settingsKeys.allSettings() });
 
 	if (options?.notify) {
@@ -93,14 +97,10 @@ async function getValidHikarinagiAuth() {
 	const auth = settings.hikarinagi_auth ?? null;
 
 	if (!auth?.access_token) return null;
-	if (!isHikarinagiAuthRefreshDue(auth)) return auth;
-
-	return refreshHikarinagiAuthSingleFlight(auth);
-}
-
-async function getValidHikarinagiAccessToken() {
-	const auth = await getValidHikarinagiAuth();
-	return auth?.access_token;
+	const validAuth = isHikarinagiAuthRefreshDue(auth)
+		? await refreshHikarinagiAuthSingleFlight(auth)
+		: auth;
+	return isOAuthAuthExpired(validAuth) ? null : validAuth;
 }
 
 export function isHikarinagiAuthExpiredError(error: unknown) {
@@ -108,12 +108,13 @@ export function isHikarinagiAuthExpiredError(error: unknown) {
 }
 
 export async function withHikarinagiAuth<T>(
-	fn: (token?: string) => Promise<T>,
+	fn: (token?: string, auth?: HikarinagiAuth) => Promise<T>,
 ) {
-	const token = await getValidHikarinagiAccessToken();
+	const auth = await getValidHikarinagiAuth();
+	const token = auth?.access_token;
 
 	try {
-		return await fn(token);
+		return await fn(token, auth ?? undefined);
 	} catch (error) {
 		if (token && isHttpStatus(error, 401)) {
 			await logoutHikarinagiAuth({ notify: true });
@@ -126,6 +127,15 @@ export async function withHikarinagiAuth<T>(
 		}
 		throw error;
 	}
+}
+
+export function hasHikarinagiScope(
+	auth: HikarinagiAuth | null | undefined,
+	requiredScope: string,
+) {
+	return new Set(auth?.scope?.split(/\s+/).filter(Boolean) ?? []).has(
+		requiredScope,
+	);
 }
 
 export async function initHikarinagiAuthRefresh() {

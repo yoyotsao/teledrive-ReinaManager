@@ -22,7 +22,7 @@ export const SOURCE_COVER_PRIORITY: readonly SourceType[] = [
 	"hgamefree",
 ];
 
-const BASIC_FIELD_PRIORITY: readonly SourceType[] = [
+export const MIXED_BASIC_SOURCE_PRIORITY: readonly SourceType[] = [
 	"bgm",
 	"vndb",
 	"hikarinagi",
@@ -72,6 +72,11 @@ const MIXED_TITLE_SOURCES: readonly SourceType[] = ["vndb", "kun"];
 
 type SourceDisplayMap = Partial<Record<SourceType, SourceDisplayFields>>;
 
+export interface SourceSummaryOption {
+	source: SourceType;
+	summary: string;
+}
+
 const nullToUndefined = <T>(value: T | null | undefined): T | undefined =>
 	value ?? undefined;
 
@@ -110,6 +115,22 @@ export function getSourceDeveloperOptions(game: SourceRecordPayload): string[] {
 			}),
 		),
 	);
+}
+
+export function getSourceSummaryOptions(
+	game: SourceRecordPayload,
+): SourceSummaryOption[] {
+	const sourceMap = getSourceRecordMap(game);
+
+	return SUMMARY_PRIORITY.flatMap((source) => {
+		const data = sourceMap.get(source)?.data;
+		if (data == null) return [];
+
+		const summary = getSourceDisplayFields(source, data).summary;
+		if (!summary?.trim()) return [];
+
+		return [{ source, summary }];
+	});
 }
 
 export function applySingleSourceDisplay(
@@ -194,7 +215,9 @@ export function applyMixedSourceDisplay(
 	coverSource?: SourceType | null,
 ): void {
 	const displays = buildDisplayMap(sources);
-	const primarySource = BASIC_FIELD_PRIORITY.find((source) => displays[source]);
+	const primarySource = MIXED_BASIC_SOURCE_PRIORITY.find(
+		(source) => displays[source],
+	);
 	if (primarySource) {
 		assignBasicFields(target, displays[primarySource] as SourceDisplayFields);
 	}

@@ -13,6 +13,7 @@ import type {
 	UpdateGameParams,
 } from "@/types";
 import { isSourceType } from "@/types";
+import type { PlayStatus } from "@/types/collection";
 import {
 	getArrayDiff,
 	getBoolDiff,
@@ -21,7 +22,8 @@ import {
 } from "@/utils/diff";
 import { getGameDisplayName, getGameNsfwStatus } from "@/utils/game";
 import { normalizeSteamLaunchId } from "@/utils/steam";
-import type { SourceIdMap } from "../sourceAdapter";
+import { isDeprecatedSource, SEARCHABLE_SOURCE_KEYS } from "../constants";
+import { assertSourceAvailable, type SourceIdMap } from "../sourceAdapter";
 import {
 	buildGameCandidateFromSourceSelection,
 	candidateSourcesToGameSources,
@@ -39,11 +41,7 @@ import {
 } from "../sourceRegistry";
 import type { GameMetadataSession } from "./gameMetadataService";
 
-export interface GameInfoUpdateDraft {
-	newLocalPath: string;
-	newExecutable?: string;
-	newLaunchType?: GameLaunchType;
-	newSteamLaunchId?: string;
+export interface GameProfileUpdateDraft {
 	newName: string;
 	newImageExt?: string | null;
 	newCoverSource?: SourceType | null;
@@ -53,6 +51,16 @@ export interface GameInfoUpdateDraft {
 	newDeveloper?: string;
 	newNsfw?: boolean;
 	newDate?: string;
+}
+
+export interface GameLaunchUpdateDraft {
+	newLocalPath: string;
+	newExecutable: string;
+	newLaunchType: GameLaunchType;
+	newSteamLaunchId: string;
+}
+
+export interface GameReviewUpdateDraft {
 	newUserRating?: number | null;
 	newUserReview?: string;
 }
@@ -64,6 +72,8 @@ export interface BatchImportGameCandidate {
 	launch_type?: GameLaunchType;
 	steam_launch_id?: string;
 	matchedData?: GameMetadataDraft;
+	playStatus?: PlayStatus;
+	skipCloudStatusLookup?: boolean;
 }
 
 export interface GameRuntimeInsertOptions {
@@ -183,6 +193,7 @@ export async function fetchMetadataForUpdate({
 
 	let apiData: GameMetadataDraft;
 	if (isSourceType(idType)) {
+		assertSourceAvailable(idType);
 		const sourceId = sourceIds?.[idType];
 		if (!sourceId) {
 			throw new Error(
@@ -261,7 +272,13 @@ export function buildMetadataUpdatePayload(
 	gameData: GameMetadataDraft,
 	failedSources: readonly SourceType[] = [],
 ): UpdateGameParams {
-	const records = candidateSourcesToGameSources(gameData.sources);
+	if (gameData.id_type && isSourceType(gameData.id_type)) {
+		assertSourceAvailable(gameData.id_type);
+	}
+	// 网络更新不负责写入或移除废弃源，旧快照及其封面引用始终保留。
+	const records = candidateSourcesToGameSources(gameData.sources).filter(
+		(record) => !isDeprecatedSource(record.source),
+	);
 	const presentSources = new Set(records.map((record) => record.source));
 	const failedSourceSet = new Set(failedSources);
 	const sourceDate = getGameCandidateDate(gameData);
@@ -276,12 +293,12 @@ export function buildMetadataUpdatePayload(
 		updateData.upsert_sources = records.filter(
 			(record) => record.source === gameData.id_type,
 		);
-		updateData.remove_sources = REGISTERED_SOURCE_KEYS.filter(
+		updateData.remove_sources = SEARCHABLE_SOURCE_KEYS.filter(
 			(source) => source !== gameData.id_type && !failedSourceSet.has(source),
 		);
 	} else {
 		updateData.upsert_sources = records;
-		updateData.remove_sources = REGISTERED_SOURCE_KEYS.filter(
+		updateData.remove_sources = SEARCHABLE_SOURCE_KEYS.filter(
 			(source) => !presentSources.has(source) && !failedSourceSet.has(source),
 		);
 	}
@@ -289,9 +306,9 @@ export function buildMetadataUpdatePayload(
 	return updateData;
 }
 
-export function buildGameInfoUpdatePayload(
+export function buildGameLaunchUpdatePayload(
 	originalGame: GameData,
-	draft: GameInfoUpdateDraft,
+	draft: GameLaunchUpdateDraft,
 ): UpdateGameParams {
 	const payload: UpdateGameParams = {};
 	const localPathDiff = getDiff(draft.newLocalPath, originalGame.localpath);
@@ -322,6 +339,14 @@ export function buildGameInfoUpdatePayload(
 			payload.steam_launch_id = steamLaunchIdDiff;
 		}
 	}
+	return payload;
+}
+
+export function buildGameProfileUpdatePayload(
+	originalGame: GameData,
+	draft: GameProfileUpdateDraft,
+): UpdateGameParams {
+	const payload: UpdateGameParams = {};
 
 	const currentCustomData = originalGame.custom_data || {};
 	const displayName = getGameDisplayName(originalGame);
@@ -393,6 +418,22 @@ export function buildGameInfoUpdatePayload(
 		}
 	}
 
+	if (nextCustomData) {
+		payload.custom_data = nextCustomData;
+	}
+
+	return payload;
+}
+
+export function buildGameReviewUpdatePayload(
+	originalGame: GameData,
+	draft: GameReviewUpdateDraft,
+): UpdateGameParams {
+	const payload: UpdateGameParams = {};
+	const currentCustomData = originalGame.custom_data || {};
+	let nextCustomData: CustomData | undefined;
+	const customData = () => (nextCustomData ??= { ...currentCustomData });
+
 	if (draft.newUserRating !== undefined) {
 		const userRatingDiff = getNumberDiff(
 			draft.newUserRating,
@@ -426,13 +467,16 @@ export async function buildBulkImportGameData(
 	cloudStatusContext?: CloudPlayStatusContext,
 ): Promise<InsertGameParams> {
 	if (item.matchedData) {
-		return buildInsertGameData(item.matchedData, {
+		const insertData = await buildInsertGameData(item.matchedData, {
 			localpath: item.path,
 			executable: item.selectedExe,
 			launch_type: item.launch_type,
 			steam_launch_id: item.steam_launch_id,
 			cloudStatusContext,
 		});
+		return item.playStatus === undefined
+			? insertData
+			: { ...insertData, clear: item.playStatus };
 	}
 	const launchFields = buildGameLaunchInsertFields(item);
 

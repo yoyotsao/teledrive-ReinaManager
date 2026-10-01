@@ -76,6 +76,7 @@ export interface BgmAuth extends OAuthAuth {
 export interface HikarinagiAuth extends OAuthAuth {
 	user_id?: Nullable<number>;
 	name?: Nullable<string>;
+	scope?: Nullable<string>;
 }
 
 // ==================== 元数据结构 ====================
@@ -268,6 +269,10 @@ export const SOURCE_TYPES = [
 	"steam",
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
+export type CloudCollectionSource = Extract<
+	SourceType,
+	"bgm" | "vndb" | "hikarinagi"
+>;
 
 export type apiSourceType = SourceType | "mixed";
 
@@ -420,11 +425,12 @@ export interface UpdateSettingsParams {
 	bgmAuth?: Nullable<BgmAuth>;
 	hikarinagiAuth?: Nullable<HikarinagiAuth>;
 	vndbToken?: Nullable<string>;
-	saveRootPath?: Nullable<string>;
 	dbBackupPath?: Nullable<string>;
 	installRootPath?: Nullable<string>;
 	lePath?: Nullable<string>;
 	magpiePath?: Nullable<string>;
+	defaultLeLaunch?: boolean;
+	defaultMagpie?: boolean;
 }
 
 /**

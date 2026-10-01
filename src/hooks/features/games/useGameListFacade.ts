@@ -1,10 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { gameKeys, useAllGames, useGameIdList } from "@/hooks/queries/useGames";
-import { useStore } from "@/store/appStore";
+import {
+	type CollectionGameFilterSortConfig,
+	useStore,
+} from "@/store/appStore";
 import type { GameData } from "@/types";
-import { PlayStatus } from "@/types/collection";
+import { ALL_PLAY_STATUSES, PlayStatus } from "@/types/collection";
 import { getGameNsfwStatus } from "@/utils/game";
 import {
 	createSearchIndex,
@@ -22,6 +25,47 @@ const EMPTY_GAMES: GameData[] = [];
 export interface GameListScopeOptions {
 	scopeGameIds?: readonly number[];
 	applyNsfwFilter?: boolean;
+	preferencesScope?: "library" | "collection";
+}
+
+/** 自定义收藏分类使用独立偏好，避免与游戏库的搜索、筛选和排序互相覆盖。 */
+export function useGameListPreferences(
+	preferencesScope: GameListScopeOptions["preferencesScope"] = "library",
+): CollectionGameFilterSortConfig {
+	return useStore(
+		useShallow((state) =>
+			preferencesScope === "collection"
+				? state.collectionGameFilterSort
+				: {
+						gameFilterType: state.gameFilterType,
+						playStatusFilter: state.playStatusFilter,
+						tagFilters: state.tagFilters,
+						sortOption: state.sortOption,
+						sortOrder: state.sortOrder,
+						showCardSortFieldOverlay: state.showCardSortFieldOverlay,
+					},
+		),
+	);
+}
+
+export function getActiveGameFilterCount({
+	gameFilterType,
+	playStatusFilter,
+	tagFilters,
+}: Pick<
+	CollectionGameFilterSortConfig,
+	"gameFilterType" | "playStatusFilter" | "tagFilters"
+>): number {
+	return (
+		Number(gameFilterType !== "all") +
+		Number(
+			Array.isArray(playStatusFilter)
+				? playStatusFilter.length > 0 &&
+						playStatusFilter.length < ALL_PLAY_STATUSES.length
+				: playStatusFilter !== "all",
+		) +
+		Number(tagFilters.length > 0)
+	);
 }
 
 function gameMatchesTagFilters(
@@ -77,6 +121,7 @@ export function useGameIndex() {
 export function useFilteredGamesFacade({
 	scopeGameIds,
 	applyNsfwFilter = true,
+	preferencesScope,
 }: GameListScopeOptions = {}) {
 	const {
 		gameFilterType,
@@ -84,24 +129,28 @@ export function useFilteredGamesFacade({
 		tagFilters,
 		sortOption,
 		sortOrder,
-		nsfwFilter,
-	} = useStore(
-		useShallow((s) => ({
-			gameFilterType: s.gameFilterType,
-			playStatusFilter: s.playStatusFilter,
-			tagFilters: s.tagFilters,
-			sortOption: s.sortOption,
-			sortOrder: s.sortOrder,
-			nsfwFilter: s.nsfwFilter,
-		})),
-	);
+	} = useGameListPreferences(preferencesScope);
+	const nsfwFilter = useStore((s) => s.nsfwFilter);
 
 	const gameIndexQuery = useGameIndex();
 	const { index } = gameIndexQuery;
 
 	// 2. 排序/筛选后的 ID 列表（轻量 IPC，切换排序时仅传输几 KB）
-	const gameIdListQuery = useGameIdList(gameFilterType, sortOption, sortOrder);
+	const isManualSort = sortOption === "manual";
+	const needsIdQuery = !isManualSort || gameFilterType !== "all";
+	const gameIdListQuery = useGameIdList(
+		gameFilterType,
+		isManualSort ? "addtime" : sortOption,
+		sortOrder,
+		needsIdQuery,
+	);
 	const sortedIds = gameIdListQuery.data ?? EMPTY_IDS;
+	const orderedIds = isManualSort ? (scopeGameIds ?? EMPTY_IDS) : sortedIds;
+	const matchingTypeIds = useMemo(
+		() =>
+			isManualSort && gameFilterType !== "all" ? new Set(sortedIds) : null,
+		[isManualSort, gameFilterType, sortedIds],
+	);
 	const scopedGameIdSet = useMemo(
 		() => (scopeGameIds ? new Set(scopeGameIds) : null),
 		[scopeGameIds],
@@ -109,21 +158,28 @@ export function useFilteredGamesFacade({
 
 	// 3. 从 Map 读取 GameData，应用前端过滤
 	const baseFilteredGames = useMemo(() => {
-		if (sortedIds.length === 0 || index.displayById.size === 0) {
+		if (orderedIds.length === 0 || index.displayById.size === 0) {
 			return EMPTY_GAMES;
 		}
 
 		const games: GameData[] = [];
-		for (const id of sortedIds) {
+		for (const id of orderedIds) {
 			if (scopedGameIdSet && !scopedGameIdSet.has(id)) continue;
+			if (matchingTypeIds && !matchingTypeIds.has(id)) continue;
 
 			const game = index.displayById.get(id);
 			if (!game) continue;
 
-			if (
-				playStatusFilter !== "all" &&
-				(game.clear ?? PlayStatus.WISH) !== playStatusFilter
-			) {
+			const status = game.clear ?? PlayStatus.WISH;
+			if (Array.isArray(playStatusFilter)) {
+				if (
+					playStatusFilter.length > 0 &&
+					playStatusFilter.length < ALL_PLAY_STATUSES.length &&
+					!playStatusFilter.includes(status)
+				) {
+					continue;
+				}
+			} else if (playStatusFilter !== "all" && status !== playStatusFilter) {
 				continue;
 			}
 
@@ -136,7 +192,8 @@ export function useFilteredGamesFacade({
 
 		return games;
 	}, [
-		sortedIds,
+		orderedIds,
+		matchingTypeIds,
 		index.displayById,
 		scopedGameIdSet,
 		playStatusFilter,
@@ -162,9 +219,12 @@ export function useFilteredGamesFacade({
 		index,
 		baseFilteredGames,
 		filteredGames,
-		isLoading: gameIndexQuery.isLoading || gameIdListQuery.isLoading,
-		isError: gameIndexQuery.isError || gameIdListQuery.isError,
-		error: gameIndexQuery.error ?? gameIdListQuery.error,
+		isLoading:
+			gameIndexQuery.isLoading || (needsIdQuery && gameIdListQuery.isLoading),
+		isError:
+			gameIndexQuery.isError || (needsIdQuery && gameIdListQuery.isError),
+		error:
+			gameIndexQuery.error ?? (needsIdQuery ? gameIdListQuery.error : null),
 	};
 }
 
@@ -175,10 +235,15 @@ export function useFilteredGamesFacade({
  * 只有实际展示游戏列表的页面才应使用这个 Hook。
  */
 export function useGameListFacade(options: GameListScopeOptions = {}) {
-	const searchKeyword = useStore((s) => s.searchKeyword);
+	const searchKeyword = useStore((s) =>
+		options.preferencesScope === "collection"
+			? s.collectionGameSearch
+			: s.searchKeyword,
+	);
+	const deferredSearchKeyword = useDeferredValue(searchKeyword);
 	const { index, filteredGames, isLoading, isError, error } =
 		useFilteredGamesFacade(options);
-	const trimmedSearchKeyword = searchKeyword.trim();
+	const trimmedSearchKeyword = deferredSearchKeyword.trim();
 	const shouldBuildSearchIndex = trimmedSearchKeyword.length > 0;
 
 	const searchIndex = useMemo(() => {
@@ -207,6 +272,7 @@ export function useGameListFacade(options: GameListScopeOptions = {}) {
 
 	return {
 		displayById: index.displayById,
+		isSearchPending: searchKeyword !== deferredSearchKeyword,
 		filteredGames,
 		gameIds,
 		isLoading,

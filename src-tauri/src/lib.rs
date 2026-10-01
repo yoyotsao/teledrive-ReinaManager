@@ -6,10 +6,12 @@ mod install;
 mod oauth;
 mod utils;
 
+use backup::automatic::create_auto_backup;
 use backup::covers::backup_custom_covers;
-use backup::database::{backup_database, import_database};
+use backup::database::{backup_database, import_database, open_database_backup_folder};
 use backup::savedata::{
-    create_savedata_backup, delete_savedata_backup, move_backup_folder, restore_savedata_backup,
+    change_savedata_backup_root, create_savedata_backup, delete_savedata_backup,
+    delete_savedata_backup_record, open_savedata_backup_folder, restore_savedata_backup,
 };
 use database::*;
 use game::cover::custom::{delete_game_covers, import_clipboard_image_to_temp};
@@ -42,8 +44,11 @@ use tauri::Manager;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tauri_plugin_store::StoreExt;
 use utils::{
-    fs::{copy_file, delete_file, is_portable_mode, open_directory, resolve_dropped_local_path},
-    http::update_proxy_config,
+    fs::{
+        copy_file, delete_file, inspect_user_path, is_portable_mode, open_directory,
+        open_savedata_location, resolve_dropped_local_path,
+    },
+    http::{get_system_proxy_status, update_proxy_config},
     image::register_image_proxy_protocol,
     legacy_migration::run_startup_migrations,
     logs::{get_reina_log_level, set_reina_log_level},
@@ -51,6 +56,8 @@ use utils::{
 
 #[cfg(target_os = "windows")]
 use utils::http::{SystemProxyMonitor, start_system_proxy_monitor};
+#[cfg(target_os = "windows")]
+use utils::zoom::listen_to_webview_zoom;
 
 const LOG_MAX_FILE_SIZE: u128 = 1_000_000;
 const LOG_KEEP_FILE_COUNT: usize = 5;
@@ -88,7 +95,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--flag1", "--flag2"]), /* arbitrary number of args to pass to your app */
+            Some(vec!["--startup"]), /* arbitrary number of args to pass to your app */
         ))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -99,6 +106,8 @@ pub fn run() {
             launch_game,
             stop_game,
             open_directory,
+            open_savedata_location,
+            inspect_user_path,
             resolve_dropped_local_path,
             resolve_bulk_import_paths,
             is_portable_mode,
@@ -116,16 +125,20 @@ pub fn run() {
             delete_task,
             complete_game_install_task,
             fail_game_install_metadata,
-            move_backup_folder,
+            change_savedata_backup_root,
             copy_file,
             create_savedata_backup,
             delete_savedata_backup,
+            delete_savedata_backup_record,
+            open_savedata_backup_folder,
             restore_savedata_backup,
             delete_file,
             import_clipboard_image_to_temp,
             delete_game_covers,
             delete_cloud_cache,
             backup_database,
+            create_auto_backup,
+            open_database_backup_folder,
             backup_custom_covers,
             import_database,
             // 游戏数据相关 commands
@@ -141,7 +154,6 @@ pub fn run() {
             get_source_bindings,
             update_games_batch,
             // 存档备份相关 commands
-            save_savedata_record,
             get_savedata_count,
             get_savedata_records,
             // 游戏统计相关 commands
@@ -158,6 +170,7 @@ pub fn run() {
             get_all_settings,
             update_settings,
             update_proxy_config,
+            get_system_proxy_status,
             // BGM OAuth 相关 commands
             bgm_oauth_start_login,
             bgm_oauth_cancel_login,
@@ -184,6 +197,7 @@ pub fn run() {
             add_games_to_collections,
             set_game_collections,
             update_category_games,
+            reorder_category_games,
             count_games_in_group,
             get_categories_with_count,
         ])
@@ -200,6 +214,11 @@ pub fn run() {
             };
 
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "windows")]
+                if let Err(error) = listen_to_webview_zoom(&window) {
+                    eprintln!("监听 WebView 缩放失败: {error}");
+                }
+
                 if !silent_startup {
                     let _ = window.show();
                 }
@@ -251,7 +270,7 @@ pub fn run() {
             setup_install_protocol(app);
 
             #[cfg(target_os = "windows")]
-            match start_system_proxy_monitor() {
+            match start_system_proxy_monitor(Some(app.handle().clone())) {
                 Ok(monitor) => {
                     app.manage(monitor);
                     log::debug!("Windows 系统代理监听已启动");

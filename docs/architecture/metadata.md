@@ -19,6 +19,21 @@ src/metadata/
 
 当前注册源由 `SOURCE_ADAPTERS` 决定，包括 BGM、VNDB、YMGal、Kungal、DLsite、ErogameScape、Hikarinagi、HGameFree 和 Steam。Steam 使用公开的 storesearch／appdetails（无需密钥），提供简介、类型标签、开发商、发售日和封面，仅 `type=game` 的条目有效。HGameFree 是下载站文章（WordPress REST API），只提供标题、封面和下载链接里的压缩包文件名（存入 `aliases`），用于云端扫描按文件名匹配；MEGA 链接不含文件名，只能靠标题匹配。网页版搜索 HGameFree 时优先查 reina-server 的本机索引，索引未就绪或桌面版则直接请求站台（`src/metadata/api/hgamefree.ts`）。新增源时，网页版还需在 `reina-server/src/upstream/policy.rs` 登记 host 与限速，桌面版在 `src-tauri/capabilities/default.json` 放行域名。不在文档中复制派生源列表；以 `sourceRegistry.ts` 和 `constants.ts` 为准。
 
+### 废弃源与历史兼容
+
+`constants.ts` 的 `DEPRECATED_SOURCE_KEYS` 将废弃源与在线源分开。注册表仍保留只读 Adapter，
+`SEARCHABLE_SOURCE_KEYS` 和 `MIXED_SOURCE_KEYS` 则只包含在线源。不要用在线源集合过滤历史展示、
+封面、简介或外链。详情页允许切换到已保存的废弃源，但不能搜索、修改其请求 ID 或刷新。
+
+旧 `kun` 为 Kungal v1，只保留历史类型、显示字段、ID 校验和旧外链；旧网络实现已经移除。
+服务层及旧 Adapter 均拒绝在线操作，mixed 请求过滤它。元数据更新 Payload 不覆盖或删除废弃源，
+避免刷新其他源时丢失旧数据及封面引用。
+
+持久化的 Kungal 单源和 mixed 偏好仍保留，不发起请求。单源选择中的旧值标为已废弃；
+mixed 设置只显示在线源，不展示废弃源的勾选项，数量约束也只计算在线源。
+旧偏好不占名额，停用后只有一个在线源的存量配置仍可使用该源。
+当前不迁移源偏好，不改写游戏的旧 `kun` ID、数据或封面来源。
+
 ## Adapter 边界
 
 `MetadataSourceAdapter<TData>` 将每个数据源统一为以下能力：
@@ -87,6 +102,13 @@ UI → GameMetadataSession
 
 单个源失败不应立即使混合搜索失败；只有所有已尝试源都失败时才向上抛出整体错误。
 
+### 下载安装元数据
+
+安装任务进入 `matching_metadata` 后，由 `InstallRequestHandler` 获取元数据并交回后端导入。
+请求来源取安装协议携带的 BGM、VNDB、Hikarinagi ID 与匹配开始时 `mixedEnabledSources` 的交集；
+不会按名称补查未携带 ID 的来源。Hikarinagi 还要求已配置 access token，必要时先刷新再请求；
+BGM、VNDB 不以登录状态作为请求开关。没有可请求来源时，使用安装标题创建自定义条目。
+
 ### 展示合并
 
 ```text
@@ -97,6 +119,22 @@ FullGameData.sources
 → custom_data 覆盖/补充
 → GameData
 ```
+
+### 云端收藏导入
+
+```text
+BGM / VNDB / Hikarinagi 用户收藏
+→ 统一收藏候选（来源 ID、状态、评分、评论、预览）
+→ 按同源 ID 排除本地已有游戏
+→ 获取完整 GameMetadataDraft
+→ 批量写入 localpath 为空的云端游戏
+```
+
+- BGM 收藏列表只用于预览和个人数据，选中后逐项读取完整条目详情。
+- VNDB 在 `ulist` 中显式选择个人字段及嵌套 `vn` 详情，同一次分页请求完成转换。
+- Hikarinagi 状态列表用于预览和个人数据，选中后逐项读取完整 Galgame 详情。
+- 收藏状态写入 `games.clear`，有效评分和非空评论写入 `custom_data`。详情失败的项目不使用预览数据降级入库。
+- 导入任务复用批量新增、身份去重和游戏缓存 patch；外部 API 请求统一沿用请求上下文、取消信号与限速队列。
 
 字段优先级属于 `displayMergeRules.ts`，不应复制到 Adapter 或 UI。
 
@@ -116,11 +154,12 @@ FullGameData.sources
 ## 新增数据源
 
 1. 在 `src/types` 定义源数据类型，并扩展 `SourceType` / `SOURCE_TYPES`。
-2. 在 `metadata/api` 实现该源请求和响应转换。
+2. 在 `metadata/api` 实现该源请求和响应转换；若请求新域名，同步更新 Tauri capability。
 3. 在 `metadata/adapters` 实现 `MetadataSourceAdapter<TData>`。
 4. 在 `sourceRegistry.ts` 注册 Adapter 并扩展 `SourceAdapterMap`。
 5. 根据产品行为调整 `constants.ts` 中的搜索/混合源集合和默认值。
-6. 若新源对字段合并有意义，更新 `displayMergeRules.ts`。
-7. 更新跨层类型、国际化文案和相关设置 UI，再按 i18n Skill 验证。
+6. 若新源对字段合并有意义，更新 `displayMergeRules.ts`；参与基础字段合并时，同步前后端的 `MIXED_BASIC_SOURCE_PRIORITY`。
+7. 若新源可作为用户选定的封面来源，同步扩展 Rust `CustomData::cover_source` 使用的 `SourceType` 枚举。
+8. 更新跨层类型、国际化文案和相关设置 UI，再按 i18n Skill 验证。
 
 新源应尽可能通过 registry 自动进入通用流程。仅在有真实产品差异时，才在上层增加源特有分支。

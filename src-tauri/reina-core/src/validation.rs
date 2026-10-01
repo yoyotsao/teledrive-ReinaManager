@@ -4,15 +4,15 @@ use std::path::{Component, Path, PathBuf};
 
 /// 清洗并校验游戏安装根目录，确保任务和默认设置使用相同规则。
 pub fn normalize_install_root_path(value: &str) -> Result<PathBuf, String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err("请先选择游戏安装目录".to_string());
+    reina_path::resolve_user_path(value).map_err(|error| error.to_string())
+}
+
+/// 校验用户配置路径，但保留尚未在当前机器定义的变量表达式。
+pub fn validate_configured_user_path(value: &str) -> Result<(), String> {
+    match reina_path::resolve_user_path(value) {
+        Ok(_) | Err(reina_path::PathResolveError::UndefinedVariable(_)) => Ok(()),
+        Err(error) => Err(error.to_string()),
     }
-    let path: PathBuf = PathBuf::from(trimmed).components().collect();
-    if !path.is_absolute() {
-        return Err("游戏安装目录必须是绝对路径".to_string());
-    }
-    Ok(path)
 }
 
 /// 校验跨协议、压缩包和数据库共用的安全相对文件路径。
@@ -51,7 +51,8 @@ pub fn validate_executable_name(value: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_install_root_path, validate_executable_name, validate_safe_relative_path,
+        normalize_install_root_path, validate_configured_user_path, validate_executable_name,
+        validate_safe_relative_path,
     };
     use std::path::PathBuf;
 
@@ -97,5 +98,20 @@ mod tests {
         assert!(validate_executable_name("game.exe").is_ok());
         assert!(validate_executable_name("dir/game.exe").is_err());
         assert!(validate_executable_name(r"dir\game.exe").is_err());
+    }
+
+    #[test]
+    fn configured_path_allows_undefined_variable() {
+        #[cfg(windows)]
+        let path = r"%REINA_TEST_UNDEFINED%\Games";
+        #[cfg(not(windows))]
+        let path = "$REINA_TEST_UNDEFINED/Games";
+
+        assert!(validate_configured_user_path(path).is_ok());
+    }
+
+    #[test]
+    fn configured_path_rejects_relative_path() {
+        assert!(validate_configured_user_path("games").is_err());
     }
 }

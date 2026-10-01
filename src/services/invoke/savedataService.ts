@@ -14,11 +14,29 @@ export interface BackupInfo {
 	backup_path: string;
 }
 
+/** 恢复存档的结果。路径可能是当前路径，也可能是按备份原名恢复的并存路径。 */
+export interface RestoreBackupResult {
+	restored_path: string;
+	replaced_existing: boolean;
+	restored_to_alternate: boolean;
+	cleanup_warning: string | null;
+}
+
+export type SavedataBackupDeleteStatus =
+	| "deleted"
+	| "missing_file"
+	| "file_inaccessible";
+
+export interface SavedataBackupDeleteResult {
+	status: SavedataBackupDeleteStatus;
+	message: string | null;
+}
+
 class SavedataService extends BaseService {
 	/**
 	 * 创建存档备份
 	 * @param gameId 游戏ID
-	 * @param sourcePath 存档文件夹路径
+	 * @param sourcePath 存档文件或文件夹路径
 	 */
 	async createBackup(gameId: number, sourcePath: string): Promise<BackupInfo> {
 		return this.invoke<BackupInfo>("create_savedata_backup", {
@@ -31,40 +49,41 @@ class SavedataService extends BaseService {
 	 * 删除备份文件和数据库记录（二合一）
 	 * @param backupId 备份记录ID
 	 */
-	async deleteBackup(backupId: number): Promise<void> {
-		return this.invoke<void>("delete_savedata_backup", { backupId });
+	async deleteBackup(backupId: number): Promise<SavedataBackupDeleteResult> {
+		return this.invoke<SavedataBackupDeleteResult>("delete_savedata_backup", {
+			backupId,
+		});
+	}
+
+	/**
+	 * 仅清除备份数据库记录。文件路径始终由后端根据备份 ID 读取和确认。
+	 */
+	async deleteBackupRecord(backupId: number): Promise<void> {
+		return this.invoke<void>("delete_savedata_backup_record", { backupId });
 	}
 
 	/**
 	 * 恢复存档备份
-	 * @param backupFilePath 备份文件完整路径
+	 * @param backupId 备份记录 ID
 	 * @param targetPath 目标恢复路径
 	 */
 	async restoreBackup(
-		backupFilePath: string,
+		backupId: number,
 		targetPath: string,
-	): Promise<void> {
-		return this.invoke<void>("restore_savedata_backup", {
-			backupFilePath,
+	): Promise<RestoreBackupResult> {
+		return this.invoke<RestoreBackupResult>("restore_savedata_backup", {
+			backupId,
 			targetPath,
 		});
 	}
 
-	/**
-	 * 保存存档备份记录
-	 */
-	async saveSavedataRecord(
-		gameId: number,
-		fileName: string,
-		backupTime: number,
-		fileSize: number,
-	): Promise<number> {
-		return this.invoke<number>("save_savedata_record", {
-			gameId,
-			fileName,
-			backupTime,
-			fileSize,
-		});
+	async openBackupFolder(gameId: number): Promise<void> {
+		return this.invoke<void>("open_savedata_backup_folder", { gameId });
+	}
+
+	/** 打开存档位置；文件打开其父目录，目录打开自身。 */
+	async openLocation(savePath: string): Promise<void> {
+		return this.invoke<void>("open_savedata_location", { savePath });
 	}
 
 	/**

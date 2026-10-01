@@ -8,6 +8,7 @@ import type { TFunction } from "i18next";
 export type AppErrorCode =
 	| "tauri_invoke_failed"
 	| "unsupported_source"
+	| "deprecated_source"
 	| "invalid_game_id"
 	| "metadata_not_found"
 	| "mixed_sources_failed"
@@ -25,7 +26,6 @@ type ApiRateLimitSource =
 	| "bgm"
 	| "vndb"
 	| "ymgal"
-	| "kun"
 	| "dlsite"
 	| "erogamescape"
 	| "hikarinagi"
@@ -323,6 +323,11 @@ export function getUserErrorMessage(
 				return t("errors.invalidGameId", "游戏 ID 格式无效");
 			case "unsupported_source":
 				return t("errors.unsupportedSource", "不支持的数据源");
+			case "deprecated_source":
+				return t(
+					"errors.deprecatedSource",
+					"该数据源已废弃，已有数据仍可查看，但不能再搜索或更新。请选择其他可用数据源。",
+				);
 			case "mixed_sources_failed":
 				return t("errors.mixedSourcesFailed", "所有数据源请求均失败");
 			case "metadata_request_failed":
@@ -335,6 +340,25 @@ export function getUserErrorMessage(
 				return (
 					getAppErrorDetailMessage(error) ||
 					t("errors.invokeFailed", "应用内部调用失败，请稍后重试")
+				);
+			case "path_empty":
+				return t("errors.pathEmpty", "路径不能为空");
+			case "path_variable_syntax":
+				return t("errors.pathVariableSyntax", "路径变量语法无效");
+			case "path_variable_undefined":
+				return t("errors.pathVariableUndefined", "路径使用了未定义的环境变量");
+			case "path_variable_non_unicode":
+				return t("errors.pathVariableNonUnicode", "环境变量不是有效文本");
+			case "path_variable_cycle":
+				return t("errors.pathVariableCycle", "环境变量存在循环引用");
+			case "path_variable_depth_exceeded":
+				return t("errors.pathVariableDepth", "环境变量递归展开层数过多");
+			case "path_not_absolute":
+				return t("errors.pathNotAbsolute", "路径解析结果必须是绝对路径");
+			case "path_inspection_failed":
+				return (
+					getAppErrorDetailMessage(error) ||
+					t("errors.pathInspectionFailed", "无法读取路径状态")
 				);
 		}
 

@@ -10,11 +10,108 @@ import Typography from "@mui/material/Typography";
 import { forwardRef, memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameCoverSrc } from "@/hooks/features/games/useGameCoverSrc";
+import { isWebRuntime } from "@/services/platform";
 import { useStore } from "@/store/appStore";
-import type { CardItemProps } from "./types";
+import { getVisibleGameCoverKey } from "@/utils/game";
+import type { CardItemProps, GameCardItemProps } from "./types";
 import { useCardInteraction } from "./useCardInteraction";
 
 const noop = () => {};
+
+interface CardCoverImageProps {
+	src: string;
+	coverKey: string;
+	alt: string;
+}
+
+const CardCoverImage = memo(
+	({ src, alt }: CardCoverImageProps) => (
+		<Box
+			component="img"
+			src={src}
+			alt={alt}
+			draggable="false"
+			loading="lazy"
+			decoding="async"
+			className="h-full w-full object-cover"
+		/>
+	),
+	(previous, next) =>
+		previous.coverKey === next.coverKey && previous.alt === next.alt,
+);
+
+CardCoverImage.displayName = "CardCoverImage";
+
+interface CardContentProps {
+	coverImage: string;
+	coverKey: string;
+	displayName: string;
+	sortFieldValue?: string;
+	isActive: boolean;
+}
+
+// 交互、批量选择与拖拽更新不进入展示层，只有实际显示值改变时才渲染内容。
+const CardContent = memo(
+	({
+		coverImage,
+		coverKey,
+		displayName,
+		sortFieldValue,
+		isActive,
+	}: CardContentProps) => (
+		<>
+			<Box className="relative aspect-[3/4] overflow-hidden">
+				<CardCoverImage
+					src={coverImage}
+					coverKey={coverKey}
+					alt={displayName}
+				/>
+				{sortFieldValue && (
+					<Box className="pointer-events-none absolute inset-x-0 bottom-0 px-2.5 pt-6 pb-1.5 text-white [background:linear-gradient(to_bottom,transparent_0%,rgba(15,23,32,0.3)_50%,rgba(15,23,32,0.85)_100%)]">
+						<Typography
+							variant="caption"
+							className="block truncate text-left text-13px font-600 drop-shadow"
+						>
+							{sortFieldValue}
+						</Typography>
+					</Box>
+				)}
+			</Box>
+			<Box className="px-3 py-2.5 text-center">
+				<Tooltip title={displayName} placement="top" arrow>
+					<Typography
+						variant="subtitle2"
+						sx={{ color: isActive ? "primary.main" : "text.primary" }}
+						className="text-base truncate"
+					>
+						{displayName}
+					</Typography>
+				</Tooltip>
+			</Box>
+		</>
+	),
+	(previous, next) =>
+		// 封面 URL 含 updated_at；沿用封面语义键，避免其他字段保存时重新加载图片。
+		previous.coverKey === next.coverKey &&
+		previous.displayName === next.displayName &&
+		previous.sortFieldValue === next.sortFieldValue &&
+		previous.isActive === next.isActive,
+);
+
+CardContent.displayName = "CardContent";
+
+/** 列表顺序变化时，保持单张卡片的属性与交互边界稳定。 */
+export const GameCardItem = memo(
+	({ game, getCardProps, isOverlay, isDragging }: GameCardItemProps) => (
+		<CardItem
+			{...getCardProps(game)}
+			isOverlay={isOverlay}
+			isDragging={isDragging}
+		/>
+	),
+);
+
+GameCardItem.displayName = "GameCardItem";
 
 /**
  * CardItem - 游戏卡片组件
@@ -32,6 +129,7 @@ export const CardItem = memo(
 				batch,
 				removeAction,
 				isOverlay,
+				isDragging,
 				...props
 			},
 			ref,
@@ -45,8 +143,11 @@ export const CardItem = memo(
 				onDoubleClick: interaction?.onDoubleClick ?? noop,
 				useDelayedClick: interaction?.useDelayedClick ?? false,
 			});
-
 			const coverImage = useGameCoverSrc(game, nsfwCoverReplace);
+			// 网页版封面是异步取得的 Blob URL，必须以实际 URL 作为展示层的重渲染依据
+			const coverKey = isWebRuntime()
+				? coverImage
+				: getVisibleGameCoverKey(game, nsfwCoverReplace);
 
 			return (
 				<Card
@@ -102,46 +203,22 @@ export const CardItem = memo(
 					)}
 					<CardActionArea
 						{...handlers}
+						// 已识别为拖拽后卸载按下时的涟漪，防止松手后继续播放点击反馈。
+						disableRipple={isDragging || isOverlay}
 						className={`
-							duration-100
-							hover:shadow-lg hover:scale-105
-							active:shadow-sm active:scale-95
-							${isOverlay ? "shadow-lg scale-105" : ""}
+							transition-[transform,box-shadow] duration-100
+							${!isOverlay ? "hover:shadow-lg hover:scale-105" : ""}
+							${!isDragging && !isOverlay ? "active:shadow-sm active:scale-95" : ""}
+							${isOverlay ? "shadow-lg scale-105 [&_.MuiCardActionArea-focusHighlight]:opacity-[var(--mui-palette-action-hoverOpacity,0.04)]" : ""}
 						`}
 					>
-						<Box className="relative aspect-[3/4] overflow-hidden">
-							<Box
-								component="img"
-								src={coverImage}
-								alt={displayName}
-								draggable="false"
-								loading="lazy"
-								className="h-full w-full object-cover [filter:saturate(0.92)_contrast(0.98)]"
-							/>
-							{sortFieldOverlay && (
-								<Box className="pointer-events-none absolute inset-x-0 bottom-0 px-2.5 pt-6 pb-1.5 text-white [background:linear-gradient(to_bottom,transparent_0%,rgba(15,23,32,0.3)_50%,rgba(15,23,32,0.85)_100%)]">
-									<Typography
-										variant="caption"
-										className="block truncate text-left text-13px font-600 drop-shadow"
-									>
-										{sortFieldOverlay.value}
-									</Typography>
-								</Box>
-							)}
-						</Box>
-						<Box className="px-3 py-2.5 text-center">
-							<Tooltip title={displayName} placement="top" arrow>
-								<Typography
-									variant="subtitle2"
-									sx={{
-										color: isActive ? "primary.main" : "text.primary",
-									}}
-									className="text-base truncate"
-								>
-									{displayName}
-								</Typography>
-							</Tooltip>
-						</Box>
+						<CardContent
+							coverImage={coverImage}
+							coverKey={coverKey}
+							displayName={displayName}
+							sortFieldValue={sortFieldOverlay?.value}
+							isActive={isActive}
+						/>
 					</CardActionArea>
 				</Card>
 			);

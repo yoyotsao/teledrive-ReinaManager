@@ -2,9 +2,8 @@ use super::{
     download::{download_file, verify_file},
     persistence::check_task_control,
     persistence::{
-        cleanup_task_artifacts, emit_progress, fail_task, fail_task_and_reset_progress, find_task,
-        remove_download_artifacts, save_game_install_result, set_task_cancelled, set_task_paused,
-        set_task_stage,
+        cleanup_task_artifacts, emit_progress, fail_task, find_task, save_game_install_result,
+        set_task_cancelled, set_task_paused, set_task_stage,
     },
     types::{
         GAME_INSTALL_TASK_TYPE, GameInstallResultV1, TaskControl, TaskFailure, TaskRuntimeState,
@@ -15,13 +14,16 @@ use super::{
     },
 };
 use crate::entity::tasks;
-use crate::install::archive::{collapse_single_directory_layers, extract_archive, move_game_root};
+use crate::install::archive::{
+    ArchiveError, collapse_single_directory_layers, extract_archive, move_game_root,
+};
 use sea_orm::DatabaseConnection;
 use std::path::Path;
 use std::sync::OnceLock;
 use tauri::Manager;
 use tokio::sync::{Semaphore, SemaphorePermit, watch};
 
+// 多任务的总连接数由 download.rs 的全局连接预算约束，单任务限流时各自独立降级。
 const MAX_CONCURRENT_DOWNLOADS: usize = 3;
 const MAX_CONCURRENT_EXTRACTS: usize = 1;
 
@@ -68,23 +70,11 @@ pub(crate) fn spawn_task(
                         failure.code,
                         failure.message
                     );
-                    let url_expired = failure.code == "url_expired";
-                    let failed = if url_expired {
-                        fail_task_and_reset_progress(&db, task_id, &failure.code, &failure.message)
-                            .await
-                    } else {
-                        fail_task(&db, task_id, &failure.code, &failure.message, None).await
-                    };
+                    // 直链过期不再清理已下载的数据：续传身份与 URL 无关，
+                    // 用新直链重试可以从断点继续。
+                    let failed =
+                        fail_task(&db, task_id, &failure.code, &failure.message, None).await;
                     if let Ok(task) = &failed {
-                        if url_expired
-                            && let Err(cleanup_failure) = clear_expired_download(task).await
-                        {
-                            log::warn!(
-                                "清理过期下载失败 task_id={task_id} code={}: {}",
-                                cleanup_failure.code,
-                                cleanup_failure.message
-                            );
-                        }
                         emit_progress(
                             &app,
                             task_id,
@@ -102,12 +92,6 @@ pub(crate) fn spawn_task(
         app.state::<TaskRuntimeState>().finish(task_id);
     });
     Ok(())
-}
-
-async fn clear_expired_download(task: &tasks::Model) -> Result<(), TaskFailure> {
-    let payload = parse_game_install_payload(task)?;
-    let download_path = payload.download_path(task.id)?;
-    remove_download_artifacts(&download_path).await
 }
 
 fn download_semaphore() -> &'static Semaphore {
@@ -170,6 +154,7 @@ async fn run_game_install_task(
     if let Some(result) = parse_game_install_result(&task)?
         && Path::new(&result.install_path).is_dir()
     {
+        save_game_install_result(db, task.id, &result).await?;
         prepare_game_import(app, db, &task, request, result, control).await?;
         cleanup_task_artifacts(&payload, task.id).await;
         return Ok(());
@@ -226,12 +211,31 @@ async fn run_game_install_task(
             let app = app.clone();
             let download_path = download_path.clone();
             let archive_format = request.archive_format.clone();
+            let archive_password = request.archive_password.clone();
             let staging = staging.clone();
-            move || extract_archive(&app, &download_path, &archive_format, &staging)
+            move || {
+                extract_archive(
+                    &app,
+                    &download_path,
+                    &archive_format,
+                    archive_password.as_deref(),
+                    &staging,
+                )
+            }
         })
         .await
         .map_err(|error| TaskFailure::new("extract_task_failed", error.to_string()))?
-        .map_err(|message| TaskFailure::new("extract_failed", message))?;
+        .map_err(|error| match error {
+            ArchiveError::PasswordRequired => TaskFailure::new(
+                "archive_password_required",
+                "压缩包需要密码，请在任务管理器输入密码后重试",
+            ),
+            ArchiveError::InvalidPassword => TaskFailure::new(
+                "archive_password_invalid",
+                "解压密码错误，请在任务管理器修改密码后重试",
+            ),
+            ArchiveError::Other(message) => TaskFailure::new("extract_failed", message),
+        })?;
     }
 
     check_task_control(control)?;
@@ -260,7 +264,8 @@ async fn run_game_install_task(
     .await
     .map_err(|error| TaskFailure::new("organize_task_failed", error.to_string()))?
     .map_err(|message| TaskFailure::new("organize_failed", message))?;
-    let result = GameInstallResultV1::partial(&final_root, None);
+    let configured_install_path = payload.configured_path_for(&final_root)?;
+    let result = GameInstallResultV1::partial(&final_root, configured_install_path, None);
     // 先保存正式目录 checkpoint；应用崩溃后可跳过下载和解压，从扫描阶段恢复。
     save_game_install_result(db, task.id, &result).await?;
     prepare_game_import(app, db, &task, request, result, control).await?;

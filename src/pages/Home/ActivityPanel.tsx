@@ -23,6 +23,7 @@ import {
 	formatRelativeTime,
 	isRecentRelativeTime,
 } from "@/utils/dateTime";
+import { getSafeLocale } from "@/utils/locale";
 import type { ActivityFilter, ActivityGroup, ActivityItem } from "./homeData";
 
 interface ActivityPanelProps {
@@ -60,7 +61,7 @@ export function ActivityPanel({
 
 	const getDateLabel = (date: string) =>
 		formatDateLabel(date, {
-			language: i18n.language,
+			language: getSafeLocale(i18n.resolvedLanguage),
 			todayLabel: t("common.today", "今天"),
 			yesterdayLabel: t("common.yesterday", "昨天"),
 		});

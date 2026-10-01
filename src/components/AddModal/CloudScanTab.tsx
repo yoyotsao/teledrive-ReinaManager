@@ -34,7 +34,7 @@ export default function CloudScanTab() {
 			<Typography variant="body2" color="text.secondary">
 				{t(
 					"components.AddModal.cloudScan.description",
-					"掃描 TeleDrive 的 game 資料夾，新增尚未建立的遊戲。只有名稱完全相同的結果會自動套用，其他的需要你確認。",
+					"扫描 TeleDrive 的 game 文件夹，添加尚未建立的游戏。只有名称完全相同的结果会自动应用，其余需要你确认。",
 				)}
 			</Typography>
 			<Stack direction="row" spacing={1}>
@@ -43,7 +43,7 @@ export default function CloudScanTab() {
 					disabled={running}
 					onClick={() => void scan()}
 				>
-					{t("components.AddModal.cloudScan.start", "開始掃描")}
+					{t("components.AddModal.cloudScan.start", "开始扫描")}
 				</Button>
 				{running && (
 					<Button onClick={cancel}>
@@ -64,7 +64,7 @@ export default function CloudScanTab() {
 				<Typography color="warning.main">
 					{t(
 						"components.AddModal.cloudScan.retryLater",
-						"有 {{count}} 款暫時查不到資料，下次掃描會自動重試。",
+						"有 {{count}} 款暂时查不到资料，下次扫描会自动重试。",
 						{ count: failedCount },
 					)}
 				</Typography>
@@ -72,7 +72,7 @@ export default function CloudScanTab() {
 			<Typography variant="subtitle2">
 				{t(
 					"components.AddModal.cloudScan.pendingTitle",
-					"待確認（{{count}}）",
+					"待确认（{{count}}）",
 					{ count: pending.length },
 				)}
 			</Typography>
@@ -84,7 +84,7 @@ export default function CloudScanTab() {
 							<Typography variant="body2" color="text.secondary">
 								{t(
 									"components.AddModal.cloudScan.noCandidate",
-									"找不到可信的候選，請到遊戲詳情頁手動搜尋。",
+									"找不到可信的候选，请到游戏详情页手动搜索。",
 								)}
 							</Typography>
 						) : (
@@ -109,7 +109,7 @@ export default function CloudScanTab() {
 										size="small"
 										onClick={() => void confirm(item, candidate)}
 									>
-										{t("components.AddModal.cloudScan.confirm", "套用")}
+										{t("components.AddModal.cloudScan.confirm", "应用")}
 									</Button>
 								</Stack>
 							))
@@ -119,7 +119,7 @@ export default function CloudScanTab() {
 							color="inherit"
 							onClick={() => void dismiss(item)}
 						>
-							{t("components.AddModal.cloudScan.dismiss", "略過")}
+							{t("components.AddModal.cloudScan.dismiss", "跳过")}
 						</Button>
 					</ListItem>
 				))}

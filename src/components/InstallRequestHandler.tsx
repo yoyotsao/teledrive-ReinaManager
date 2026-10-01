@@ -15,13 +15,13 @@ import {
 	InputAdornment,
 	Link,
 	Stack,
-	TextField,
 	Typography,
 } from "@mui/material";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PathInput } from "@/components/PathInput";
 import { serverKey } from "@/hooks/queries/serverKeys";
 import { useAllSettings, useUpdateSettings } from "@/hooks/queries/useSettings";
 import { useTaskCache } from "@/hooks/queries/useTasks";
@@ -40,6 +40,7 @@ import {
 } from "@/services/invoke";
 import { withMetadataAuth } from "@/services/metadataAuth";
 import { createMetadataSession } from "@/services/requestContext";
+import { useStore } from "@/store/appStore";
 import type { SourceType } from "@/types";
 import { AppError, getUserErrorMessage, isHttpStatus } from "@/utils/errors";
 import { formatFileSize } from "@/utils/fileSize";
@@ -141,11 +142,19 @@ export function InstallRequestHandler() {
 				const bgmId = task.payload_json.bgm_id ?? undefined;
 				const hikarinagiId = task.payload_json.hikarinagi_id ?? undefined;
 				const vndbId = task.payload_json.vndb_id ?? undefined;
+				// 按匹配开始时的 mixed 偏好筛选协议携带的来源，未携带 ID 的来源不补查。
+				const { mixedEnabledSources } = useStore.getState();
 				const shouldFetchHikarinagi =
-					Boolean(hikarinagiId) && hasHikarinagiToken;
+					Boolean(hikarinagiId) &&
+					hasHikarinagiToken &&
+					mixedEnabledSources.includes("hikarinagi");
 				const enabledSources: SourceType[] = [];
-				if (bgmId) enabledSources.push("bgm");
-				if (vndbId) enabledSources.push("vndb");
+				if (bgmId && mixedEnabledSources.includes("bgm")) {
+					enabledSources.push("bgm");
+				}
+				if (vndbId && mixedEnabledSources.includes("vndb")) {
+					enabledSources.push("vndb");
+				}
 				if (shouldFetchHikarinagi) enabledSources.push("hikarinagi");
 				const customMetadataResult = {
 					data: {
@@ -237,6 +246,14 @@ export function InstallRequestHandler() {
 					listen<InstallCompletedEvent>("game-install-completed", (event) => {
 						queryClient.invalidateQueries({ queryKey: serverKey("games") });
 						void invalidateTasks();
+						if (event.payload.used_actual_path) {
+							snackbar.warning(
+								translationRef.current(
+									"components.InstallRequest.completedWithActualPath",
+									"环境变量路径已变化，已使用实际安装路径保存游戏目录",
+								),
+							);
+						}
 						if (event.payload.executable_missing) {
 							snackbar.warning(
 								translationRef.current(
@@ -476,30 +493,29 @@ export function InstallRequestHandler() {
 							)}
 						</Box>
 						<Stack spacing={1} sx={{ pt: 1 }}>
-							<TextField
+							<PathInput
+								pathType="directory"
 								label={t("components.InstallRequest.installPath", "安装路径")}
 								value={installPath}
-								onChange={(e) => setInstallPath(e.target.value)}
+								onChange={setInstallPath}
 								placeholder={t(
 									"components.InstallRequest.installPathPlaceholder",
 									"选择用于安装游戏的目录",
 								)}
 								size="small"
 								fullWidth
-								InputProps={{
-									endAdornment: (
-										<InputAdornment position="end">
-											<IconButton
-												onClick={() => void handleBrowsePath()}
-												edge="end"
-												size="small"
-												title={t("common.browse", "浏览")}
-											>
-												<FolderOpenIcon fontSize="small" />
-											</IconButton>
-										</InputAdornment>
-									),
-								}}
+								endAdornment={
+									<InputAdornment position="end">
+										<IconButton
+											onClick={() => void handleBrowsePath()}
+											edge="end"
+											size="small"
+											title={t("common.browse", "浏览")}
+										>
+											<FolderOpenIcon fontSize="small" />
+										</IconButton>
+									</InputAdornment>
+								}
 							/>
 							<FormControlLabel
 								control={

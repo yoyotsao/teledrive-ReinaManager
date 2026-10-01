@@ -27,6 +27,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { WebAuthGate } from "@/components/WebAuthGate";
 import { primeServerVersion } from "@/hooks/queries/useServerVersion";
 import { queryClient } from "@/providers/queryClient";
+import { startAutoBackupScheduler } from "@/services/autoBackupScheduler";
 import { initPathCache } from "@/services/fs/pathCache";
 import { isWebRuntime } from "@/services/platform";
 import { initTray } from "@/services/plugins/trayService";
@@ -114,6 +115,11 @@ async function bootstrap() {
 
 	// 初始化全局状态后，挂载 React 应用
 	await initializeStores();
+
+	// 桌面版自动备份调度器（网页版由服务器负责备份）
+	if (!isWebRuntime() && isTauri()) {
+		startAutoBackupScheduler();
+	}
 
 	const currentLocation = routers.state.location;
 	if (currentLocation.pathname === "/") {

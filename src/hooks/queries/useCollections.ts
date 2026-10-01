@@ -341,7 +341,7 @@ function useRemoveGamesFromCategory() {
 	});
 }
 
-function useUpdateCategoryGames() {
+function useCategoryGamesMutation(operation: "replace" | "reorder") {
 	const queryClient = useQueryClient();
 
 	return useMutation({
@@ -351,33 +351,60 @@ function useUpdateCategoryGames() {
 		}: {
 			categoryId: number;
 			gameIds: number[];
-		}) => collectionService.updateCategoryGames(gameIds, categoryId),
+		}) =>
+			operation === "reorder"
+				? collectionService.reorderCategoryGames(gameIds, categoryId)
+				: collectionService.updateCategoryGames(gameIds, categoryId),
 		onMutate: async ({ categoryId, gameIds }) => {
 			await queryClient.cancelQueries({
 				queryKey: collectionKeys.games(categoryId),
+				exact: true,
 			});
 			const previousGameIds = queryClient.getQueryData<number[]>(
 				collectionKeys.games(categoryId),
 			);
 			queryClient.setQueryData(collectionKeys.games(categoryId), gameIds);
-			return { previousGameIds };
+			return {
+				previousGameIds,
+				optimisticGameIds: queryClient.getQueryData<number[]>(
+					collectionKeys.games(categoryId),
+				),
+			};
 		},
 		onError: (_error, { categoryId }, context) => {
-			if (context?.previousGameIds) {
+			// 其他成员操作已经更新缓存时，不用旧快照覆盖较新的结果。
+			if (
+				context?.previousGameIds &&
+				queryClient.getQueryData(collectionKeys.games(categoryId)) ===
+					context.optimisticGameIds
+			) {
 				queryClient.setQueryData(
 					collectionKeys.games(categoryId),
 					context.previousGameIds,
 				);
 			}
+			if (operation === "reorder") {
+				return queryClient.invalidateQueries({
+					queryKey: collectionKeys.games(categoryId),
+					exact: true,
+				});
+			}
 		},
-		onSuccess: (_, { categoryId }) => {
-			queryClient.invalidateQueries({
-				queryKey: collectionKeys.games(categoryId),
-				exact: true,
-			});
-			queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+		onSuccess: () => {
+			// 排序成功后乐观缓存即为最终顺序，成员数和所属分类均未改变。
+			if (operation === "replace") {
+				return queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+			}
 		},
 	});
+}
+
+function useUpdateCategoryGames() {
+	return useCategoryGamesMutation("replace");
+}
+
+function useReorderCategoryGames() {
+	return useCategoryGamesMutation("reorder");
 }
 
 export {
@@ -395,6 +422,7 @@ export {
 	useRemoveGamesFromCategory,
 	useRenameCategory,
 	useRenameGroup,
+	useReorderCategoryGames,
 	useSetGameCategories,
 	useUpdateCategoryGames,
 };

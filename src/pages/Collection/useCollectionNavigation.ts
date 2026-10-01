@@ -87,7 +87,10 @@ export function useCollectionNavigation({
 				return;
 			}
 
-			setSelectedCategory({ type: "real", id: category.id });
+			const nextCategory: SelectedCategory = { type: "real", id: category.id };
+			// 从分类页进入游戏列表仍从顶部开始；详情返回不经过此入口。
+			setScrollPosition(getCollectionLevelKey(currentGroupId, nextCategory), 0);
+			setSelectedCategory(nextCategory);
 		},
 		[currentGroupId, saveCurrentLevelScroll, setSelectedCategory],
 	);

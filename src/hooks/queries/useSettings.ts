@@ -18,8 +18,10 @@ import { fetchHikarinagiCurrentUserProfile } from "@/metadata/api/hikarinagi";
 import { fetchVndbCurrentUserProfile } from "@/metadata/api/vndb";
 import { remoteQueryOptions } from "@/providers/queryClient";
 import { settingsService } from "@/services/invoke";
+import { withHikarinagiAuth } from "@/services/oauth/hikarinagiAuthSession";
 import { getNetworkRequestContext } from "@/services/requestContext";
 import type { LogLevel, UpdateSettingsParams } from "@/types";
+import { saveDataKeys } from "./useSavedata";
 
 // ============================================================================
 // Key Factory - 统一的 Query Key 前缀
@@ -66,6 +68,15 @@ function bgmCurrentUserProfileQueryOptions(token: string) {
 	});
 }
 
+function vndbCurrentUserProfileQueryOptions(token: string) {
+	return queryOptions({
+		queryKey: settingsKeys.vndbCurrentUserProfileByToken(token),
+		queryFn: () =>
+			fetchVndbCurrentUserProfile(token, getNetworkRequestContext()),
+		...remoteQueryOptions,
+	});
+}
+
 // ============================================================================
 // Fetch Functions - 非组件 ts 文件使用
 // ============================================================================
@@ -85,6 +96,13 @@ export function fetchBgmCurrentUserProfile(
 	return queryClient.fetchQuery(bgmCurrentUserProfileQueryOptions(token));
 }
 
+export function fetchVndbCurrentUserProfileCached(
+	queryClient: QueryClient,
+	token: string,
+) {
+	return queryClient.fetchQuery(vndbCurrentUserProfileQueryOptions(token));
+}
+
 // ============================================================================
 // Hooks - 组件使用
 // ============================================================================
@@ -97,31 +115,31 @@ export function useVndbCurrentUserProfile(options?: SettingsQueryOptions) {
 	const vndbToken = settings?.vndb_token ?? "";
 
 	return useQuery({
-		queryKey: settingsKeys.vndbCurrentUserProfileByToken(vndbToken),
-		queryFn: () =>
-			fetchVndbCurrentUserProfile(vndbToken, getNetworkRequestContext()),
+		...vndbCurrentUserProfileQueryOptions(vndbToken),
 		enabled: (options?.enabled ?? true) && Boolean(vndbToken),
-		...remoteQueryOptions,
 	});
 }
 
 /**
- * 获取当前 Hikarinagi Token 对应的用户资料
+ * 获取当前 Hikarinagi 用户资料
  */
 export function useHikarinagiCurrentUserProfile(
 	options?: SettingsQueryOptions,
 ) {
 	const { data: settings } = useAllSettings(options);
-	const hikarinagiToken = settings?.hikarinagi_auth?.access_token ?? "";
+	const hasAuth = Boolean(settings?.hikarinagi_auth?.access_token);
 
 	return useQuery({
-		queryKey: settingsKeys.hikarinagiCurrentUserProfileByToken(hikarinagiToken),
+		queryKey: settingsKeys.hikarinagiCurrentUserProfile(),
 		queryFn: () =>
-			fetchHikarinagiCurrentUserProfile(
-				hikarinagiToken,
-				getNetworkRequestContext(),
-			),
-		enabled: (options?.enabled ?? true) && Boolean(hikarinagiToken),
+			withHikarinagiAuth(async (token) => {
+				if (!token) return null;
+				return fetchHikarinagiCurrentUserProfile(
+					token,
+					getNetworkRequestContext(),
+				);
+			}),
+		enabled: (options?.enabled ?? true) && hasAuth,
 		...remoteQueryOptions,
 	});
 }
@@ -215,6 +233,26 @@ export function useUpdateSettings() {
 			}
 
 			await Promise.all(invalidations);
+		},
+	});
+}
+
+/** 原子迁移存档备份目录并更新配置。 */
+export function useChangeSavedataBackupRoot() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ newPath }: { newPath: string }) =>
+			settingsService.changeSavedataBackupRoot(newPath),
+		onSuccess: () => {
+			void Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: settingsKeys.allSettings(),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: saveDataKeys.all,
+				}),
+			]);
 		},
 	});
 }

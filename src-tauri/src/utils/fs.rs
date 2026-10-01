@@ -13,6 +13,38 @@ pub struct PortableModeResult {
 }
 
 #[derive(Debug, Serialize)]
+pub struct UserPathInspection {
+    pub resolved_path: String,
+    pub kind: UserPathKind,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserPathKind {
+    File,
+    Directory,
+    Missing,
+    Other,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserPathCommandError {
+    pub code: String,
+    pub message: String,
+    pub detail: String,
+}
+
+impl From<reina_path::PathResolveError> for UserPathCommandError {
+    fn from(error: reina_path::PathResolveError) -> Self {
+        Self {
+            code: error.code().to_string(),
+            message: error.to_string(),
+            detail: error.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct DroppedLocalPathResult {
     pub kind: DroppedLocalPathKind,
     pub path: Option<String>,
@@ -32,8 +64,37 @@ pub enum DroppedLocalPathKind {
 const LOCAL_EXECUTABLE_EXTENSIONS: &[&str] = &["exe", "bat", "cmd"];
 
 pub use reina_core::validation::{
-    normalize_install_root_path, validate_executable_name, validate_safe_relative_path,
+    normalize_install_root_path, validate_configured_user_path, validate_executable_name,
+    validate_safe_relative_path,
 };
+
+#[command]
+pub async fn inspect_user_path(path: String) -> Result<UserPathInspection, UserPathCommandError> {
+    let resolved = reina_path::resolve_user_path(&path)?;
+    let resolved_path = resolved.to_string_lossy().into_owned();
+    let error_path = resolved_path.clone();
+    let kind = tokio::task::spawn_blocking(move || match fs::metadata(&resolved) {
+        Ok(metadata) if metadata.is_file() => Ok(UserPathKind::File),
+        Ok(metadata) if metadata.is_dir() => Ok(UserPathKind::Directory),
+        Ok(_) => Ok(UserPathKind::Other),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(UserPathKind::Missing),
+        Err(error) => Err(UserPathCommandError {
+            code: "path_inspection_failed".to_string(),
+            message: "无法读取路径状态".to_string(),
+            detail: format!("{error_path}: {error}"),
+        }),
+    })
+    .await
+    .map_err(|error| UserPathCommandError {
+        code: "path_inspection_failed".to_string(),
+        message: "无法读取路径状态".to_string(),
+        detail: error.to_string(),
+    })??;
+    Ok(UserPathInspection {
+        resolved_path,
+        kind,
+    })
+}
 
 fn is_supported_local_executable(path: &Path) -> bool {
     path.extension().is_some_and(|ext| {
@@ -54,11 +115,7 @@ fn is_supported_local_executable(path: &Path) -> bool {
 /// 操作结果
 #[command]
 pub async fn open_directory(dir_path: String) -> Result<(), String> {
-    let dir_path = dir_path.trim();
-    if dir_path.is_empty() {
-        return Err("目录未设置".to_string());
-    }
-    let open_path = PathBuf::from(dir_path);
+    let open_path = reina_path::resolve_user_path(&dir_path).map_err(|error| error.to_string())?;
     if !open_path.is_dir() {
         return Err(format!("目录不存在或不是文件夹: {}", open_path.display()));
     }
@@ -105,12 +162,33 @@ pub async fn open_directory(dir_path: String) -> Result<(), String> {
     }
 }
 
+/// 单文件存档打开其所在目录；存档已丢失时仍允许用户查看父目录。
+#[command]
+pub async fn open_savedata_location(save_path: String) -> Result<(), String> {
+    let path = reina_path::resolve_user_path(&save_path).map_err(|error| error.to_string())?;
+    let location = match fs::metadata(&path) {
+        Ok(metadata) if metadata.is_dir() => path.as_path(),
+        Ok(metadata) if metadata.is_file() => path
+            .parent()
+            .ok_or_else(|| "无法确定存档所在目录".to_string())?,
+        Ok(_) => return Err("存档位置不是普通文件或目录".to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => path
+            .parent()
+            .ok_or_else(|| "无法确定存档所在目录".to_string())?,
+        Err(error) => return Err(format!("读取存档位置失败: {error}")),
+    };
+    open_directory(location.to_string_lossy().into_owned()).await
+}
+
 #[command]
 pub async fn resolve_dropped_local_path(
     dropped_path: String,
 ) -> Result<DroppedLocalPathResult, String> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&dropped_path);
+        if !path.is_absolute() {
+            return Err("拖拽路径必须是绝对路径".to_string());
+        }
         let metadata =
             fs::metadata(&path).map_err(|e| format!("无法读取路径 '{}': {}", dropped_path, e))?;
 
@@ -135,17 +213,17 @@ pub async fn resolve_dropped_local_path(
                 0 => Ok(DroppedLocalPathResult {
                     kind: DroppedLocalPathKind::NoExecutable,
                     path: None,
-                    directory: Some(dropped_path),
+                    directory: Some(path.to_string_lossy().into_owned()),
                 }),
                 1 => Ok(DroppedLocalPathResult {
                     kind: DroppedLocalPathKind::SingleExecutable,
                     path: first_executable,
-                    directory: Some(dropped_path),
+                    directory: Some(path.to_string_lossy().into_owned()),
                 }),
                 _ => Ok(DroppedLocalPathResult {
                     kind: DroppedLocalPathKind::MultipleExecutables,
                     path: None,
-                    directory: Some(dropped_path),
+                    directory: Some(path.to_string_lossy().into_owned()),
                 }),
             };
         }
@@ -153,7 +231,7 @@ pub async fn resolve_dropped_local_path(
         if metadata.is_file() && is_supported_local_executable(&path) {
             return Ok(DroppedLocalPathResult {
                 kind: DroppedLocalPathKind::Executable,
-                path: Some(dropped_path),
+                path: Some(path.to_string_lossy().into_owned()),
                 directory: path
                     .parent()
                     .filter(|parent| !parent.as_os_str().is_empty())

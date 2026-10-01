@@ -581,6 +581,51 @@ impl CollectionsRepository {
         txn.commit().await
     }
 
+    /// 调整分类中的游戏顺序，成员集合必须与当前数据库完全一致。
+    pub async fn reorder_category_games(
+        db: &DatabaseConnection,
+        ordered_game_ids: Vec<i32>,
+        collection_id: i32,
+    ) -> Result<(), DbErr> {
+        let txn = db.begin().await?;
+        let category = Collections::find_by_id(collection_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| DbErr::RecordNotFound("分类不存在".to_string()))?;
+        if category.parent_id.is_none() {
+            return Err(DbErr::Custom("只能调整分类中的游戏顺序".to_string()));
+        }
+
+        let current_links = GameCollectionLink::find()
+            .filter(game_collection_link::Column::CollectionId.eq(collection_id))
+            .all(&txn)
+            .await?;
+        if ordered_game_ids.len() != current_links.len() {
+            return Err(DbErr::Custom("分类成员已变化，请刷新后重试".to_string()));
+        }
+
+        let mut remaining = current_links
+            .into_iter()
+            .map(|link| (link.game_id, (link.id, link.sort_order)))
+            .collect::<std::collections::HashMap<_, _>>();
+        let mut updates = Vec::new();
+        for (order, game_id) in ordered_game_ids.into_iter().enumerate() {
+            // 移除后再查找会拒绝重复 ID；所有校验完成前不执行任何写入。
+            let (link_id, old_order) = remaining.remove(&game_id).ok_or_else(|| {
+                DbErr::Custom("排序列表包含重复或不属于当前分类的游戏".to_string())
+            })?;
+            let order = i32::try_from(order)
+                .map_err(|_| DbErr::Custom("分类中的游戏数量超出排序范围".to_string()))?;
+            if old_order != order {
+                updates.push((link_id, order));
+            }
+        }
+
+        Self::update_game_collection_sort_orders(&txn, updates).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
     // ==================== 前端友好的组合 API ====================
 
     /// 获取根分组列表（带游戏数量）
@@ -745,5 +790,129 @@ impl CollectionsRepository {
         }
 
         Ok(categories)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn setup_database() -> DatabaseConnection {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        db.execute_unprepared(
+            r#"
+            PRAGMA foreign_keys = ON;
+            CREATE TABLE games (id INTEGER PRIMARY KEY);
+            CREATE TABLE collections (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                parent_id INTEGER REFERENCES collections(id),
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                icon TEXT,
+                created_at INTEGER,
+                updated_at INTEGER
+            );
+            CREATE TABLE game_collection_link (
+                id INTEGER PRIMARY KEY,
+                game_id INTEGER NOT NULL REFERENCES games(id),
+                collection_id INTEGER NOT NULL REFERENCES collections(id),
+                sort_order INTEGER NOT NULL,
+                created_at INTEGER,
+                UNIQUE(game_id, collection_id)
+            );
+            INSERT INTO games VALUES (1), (2), (3), (4);
+            INSERT INTO collections (id, name, parent_id) VALUES
+                (1, '分组', NULL), (10, '分类', 1),
+                (20, '其他分类', 1), (30, '空分类', 1);
+            INSERT INTO game_collection_link VALUES
+                (100, 1, 10, 0, 1000), (101, 2, 10, 1, 1001),
+                (102, 3, 10, 2, 1002), (200, 4, 20, 0, 1003);
+            "#,
+        )
+        .await
+        .unwrap();
+        db
+    }
+
+    async fn all_links(db: &DatabaseConnection) -> Vec<game_collection_link::Model> {
+        GameCollectionLink::find()
+            .order_by_asc(game_collection_link::Column::Id)
+            .all(db)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn reorder_only_changes_target_sort_orders() {
+        let db = setup_database().await;
+        let mut expected = all_links(&db).await;
+        expected[0].sort_order = 1;
+        expected[1].sort_order = 2;
+        expected[2].sort_order = 0;
+
+        CollectionsRepository::reorder_category_games(&db, vec![3, 1, 2], 10)
+            .await
+            .unwrap();
+        assert_eq!(all_links(&db).await, expected);
+
+        // 同一顺序重复提交不改变关联记录及其创建时间。
+        CollectionsRepository::reorder_category_games(&db, vec![3, 1, 2], 10)
+            .await
+            .unwrap();
+        assert_eq!(all_links(&db).await, expected);
+    }
+
+    #[tokio::test]
+    async fn reorder_rejects_invalid_members_without_writes() {
+        let db = setup_database().await;
+        let original = all_links(&db).await;
+        for ids in [
+            vec![1, 2],
+            vec![1, 2, 3, 4],
+            vec![3, 3, 1],
+            vec![3, 2, 4],
+            vec![3, 2, 999],
+            vec![],
+        ] {
+            assert!(
+                CollectionsRepository::reorder_category_games(&db, ids, 10)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(all_links(&db).await, original);
+        }
+    }
+
+    #[tokio::test]
+    async fn reorder_validates_category_even_for_empty_order() {
+        let db = setup_database().await;
+        let original = all_links(&db).await;
+        for category_id in [-1, 999, 1] {
+            assert!(
+                CollectionsRepository::reorder_category_games(&db, vec![], category_id)
+                    .await
+                    .is_err()
+            );
+        }
+        CollectionsRepository::reorder_category_games(&db, vec![], 30)
+            .await
+            .unwrap();
+        assert_eq!(all_links(&db).await, original);
+    }
+
+    #[tokio::test]
+    async fn reorder_does_not_restore_removed_members() {
+        let db = setup_database().await;
+        GameCollectionLink::delete_by_id(101)
+            .exec(&db)
+            .await
+            .unwrap();
+        let current = all_links(&db).await;
+        assert!(
+            CollectionsRepository::reorder_category_games(&db, vec![3, 2, 1], 10)
+                .await
+                .is_err()
+        );
+        assert_eq!(all_links(&db).await, current);
     }
 }

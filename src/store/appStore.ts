@@ -15,11 +15,14 @@
  * - @/types
  * - @/store/gamePlayStore
  */
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
 	DEFAULT_MIXED_SOURCE_KEYS,
+	isDeprecatedSource,
 	MIXED_SOURCE_KEYS,
 	MIXED_SOURCE_MAX_COUNT,
 	MIXED_SOURCE_MIN_COUNT,
@@ -27,7 +30,7 @@ import {
 import { type ProxyConfig, settingsService } from "@/services/invoke";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke/types";
 import { isWebRuntime } from "@/services/platform";
-import type { SourceType } from "@/types";
+import type { CloudCollectionSource, SourceType } from "@/types";
 import type {
 	CollectionEntitySortField,
 	PlayStatusFilter,
@@ -47,25 +50,38 @@ export type SelectedCategory =
 export type DataSourceUpdateMode = "search" | "manualId";
 export type StartupPage = "home" | "libraries" | "collection";
 
+export interface GameFilterSortConfig {
+	gameFilterType: GameType;
+	playStatusFilter: PlayStatusFilter;
+	tagFilters: string[];
+	sortOption: SortOption;
+	sortOrder: SortOrder;
+	showCardSortFieldOverlay: boolean;
+}
+
+export interface CollectionGameFilterSortConfig
+	extends Omit<GameFilterSortConfig, "sortOption"> {
+	sortOption: SortOption | "manual";
+}
+
 const DEFAULT_API_SOURCE: SourceType = "hikarinagi";
 
 /**
  * AppState 全局状态类型定义
  */
 export interface AppState {
-	updateSort(option: SortOption, sortOrder: SortOrder): void;
-
 	// UI 状态
 	selectedGameId: number | null;
 	addModalOpen: boolean;
 	addModalPath: string;
+	cloudCollectionImportSource: CloudCollectionSource | null;
 	taskManagerOpen: boolean;
 
 	// 排序选项
 	sortOption: SortOption;
 	sortOrder: SortOrder;
 	showCardSortFieldOverlay: boolean;
-	setShowCardSortFieldOverlay: (enabled: boolean) => void;
+	applyGameFilterSort: (config: GameFilterSortConfig) => void;
 
 	// 关闭应用时的提醒设置，skip=不再提醒，行为为 'hide' 或 'close'
 	skipCloseRemind: boolean;
@@ -74,17 +90,23 @@ export interface AppState {
 	setSkipCloseRemind: (skip: boolean) => void;
 	setDefaultCloseAction: (action: "hide" | "close") => void;
 
-	// 退出时自动备份
+	// 数据库自动备份
+	scheduledBackupEnabled: boolean;
+	scheduledBackupIntervalHours: number;
 	autoBackupOnExit: boolean;
 	autoBackupIncludeCovers: boolean;
-	autoBackupMinIntervalHours: number;
+	exitBackupMinIntervalHours: number;
 	autoBackupRetentionCount: number;
 	autoBackupLastSuccessAt: number | null;
+	autoBackupLastScheduledAttemptAt: number | null;
 	autoBackupLastError: string | null;
+	setScheduledBackupEnabled: (enabled: boolean) => void;
+	setScheduledBackupIntervalHours: (hours: number) => void;
 	setAutoBackupOnExit: (enabled: boolean) => void;
 	setAutoBackupIncludeCovers: (enabled: boolean) => void;
-	setAutoBackupMinIntervalHours: (hours: number) => void;
+	setExitBackupMinIntervalHours: (hours: number) => void;
 	setAutoBackupRetentionCount: (count: number) => void;
+	setAutoBackupLastScheduledAttemptAt: (attemptAt: number) => void;
 	setAutoBackupLastResult: (
 		successAt: number | null,
 		error: string | null,
@@ -93,6 +115,7 @@ export interface AppState {
 	// UI 操作方法
 	setSelectedGameId: (id: number | null) => void;
 	openAddModal: (path?: string) => void;
+	openCloudCollectionImport: (source: CloudCollectionSource) => void;
 	closeAddModal: () => void;
 	setAddModalPath: (path: string) => void;
 	openTaskManager: () => void;
@@ -111,14 +134,9 @@ export interface AppState {
 
 	// 筛选相关
 	gameFilterType: GameType;
-	setGameFilterType: (type: GameType) => void;
 	playStatusFilter: PlayStatusFilter;
-	setPlayStatusFilter: (status: PlayStatusFilter) => void;
 	tagFilters: string[];
 	setTagFilters: (tags: string[]) => void;
-	addTagFilter: (tag: string) => void;
-	removeTagFilter: (tag: string) => void;
-	clearTagFilters: () => void;
 
 	// 数据来源选择
 	apiSource: SourceType;
@@ -141,6 +159,8 @@ export interface AppState {
 	// 启动默认页面
 	startupPage: StartupPage;
 	setStartupPage: (page: StartupPage) => void;
+	zoomPercent: number;
+	setZoomPercent: (percent: number) => void;
 
 	// TAG翻译功能
 	tagTranslation: boolean;
@@ -172,6 +192,12 @@ export interface AppState {
 	triggerUpdateModal: (update: Update) => void;
 
 	// 分组分类选择状态
+	collectionGameFilterSort: CollectionGameFilterSortConfig;
+	applyCollectionGameFilterSort: (
+		config: CollectionGameFilterSortConfig,
+	) => void;
+	collectionGameSearch: string;
+	setCollectionGameSearch: (value: string) => void;
 	currentGroupId: string | null; // 当前选中的分组ID
 	selectedCategory: SelectedCategory; // 当前选中的分类
 	setCurrentGroup: (groupId: string | null) => void; // 设置当前分组
@@ -198,6 +224,8 @@ export interface AppState {
 	// 代理设置
 	proxyConfig: ProxyConfig;
 	setProxyConfig: (config: ProxyConfig) => void;
+	isSystemProxyActive: boolean;
+	setSystemProxyActive: (active: boolean) => void;
 }
 
 // 创建持久化的全局状态
@@ -208,6 +236,7 @@ export const useStore = create<AppState>()(
 			selectedGameId: null,
 			addModalOpen: false,
 			addModalPath: "",
+			cloudCollectionImportSource: null,
 			taskManagerOpen: false,
 
 			searchInput: "",
@@ -230,21 +259,32 @@ export const useStore = create<AppState>()(
 			setDefaultCloseAction: (action: "hide" | "close") =>
 				set({ defaultCloseAction: action }),
 
-			// 退出时自动备份
+			// 数据库自动备份
+			scheduledBackupEnabled: false,
+			scheduledBackupIntervalHours: 12,
 			autoBackupOnExit: false,
 			autoBackupIncludeCovers: false,
-			autoBackupMinIntervalHours: 6,
+			exitBackupMinIntervalHours: 6,
 			autoBackupRetentionCount: 7,
 			autoBackupLastSuccessAt: null,
+			autoBackupLastScheduledAttemptAt: null,
 			autoBackupLastError: null,
+			setScheduledBackupEnabled: (enabled: boolean) =>
+				set({ scheduledBackupEnabled: enabled }),
+			setScheduledBackupIntervalHours: (hours: number) => {
+				const nextHours = Number.isFinite(hours) ? hours : 1;
+				set({
+					scheduledBackupIntervalHours: Math.max(1, Math.floor(nextHours)),
+				});
+			},
 			setAutoBackupOnExit: (enabled: boolean) =>
 				set({ autoBackupOnExit: enabled }),
 			setAutoBackupIncludeCovers: (enabled: boolean) =>
 				set({ autoBackupIncludeCovers: enabled }),
-			setAutoBackupMinIntervalHours: (hours: number) => {
+			setExitBackupMinIntervalHours: (hours: number) => {
 				const nextHours = Number.isFinite(hours) ? hours : 0;
 				set({
-					autoBackupMinIntervalHours: Math.max(0, Math.floor(nextHours)),
+					exitBackupMinIntervalHours: Math.max(0, Math.floor(nextHours)),
 				});
 			},
 			setAutoBackupRetentionCount: (count: number) => {
@@ -253,6 +293,8 @@ export const useStore = create<AppState>()(
 					autoBackupRetentionCount: Math.max(1, Math.floor(nextCount)),
 				});
 			},
+			setAutoBackupLastScheduledAttemptAt: (attemptAt: number) =>
+				set({ autoBackupLastScheduledAttemptAt: attemptAt }),
 			setAutoBackupLastResult: (
 				successAt: number | null,
 				error: string | null,
@@ -269,18 +311,23 @@ export const useStore = create<AppState>()(
 			},
 			mixedEnabledSources: [...DEFAULT_MIXED_SOURCE_KEYS],
 			toggleMixedSource: (source: SourceType) => {
+				if (!MIXED_SOURCE_KEYS.includes(source)) return;
 				set((state) => {
 					const current = state.mixedEnabledSources;
+					// 保留旧 Kungal 偏好供 v2 继承，但不占在线源的数量名额。
+					const deprecatedSources = current.filter(isDeprecatedSource);
 					const enabledAfterAdd = MIXED_SOURCE_KEYS.filter(
 						(item) => item === source || current.includes(item),
 					);
 					const nextSources = current.includes(source)
-						? current.filter((item) => item !== source)
+						? MIXED_SOURCE_KEYS.filter(
+								(item) => item !== source && current.includes(item),
+							)
 						: enabledAfterAdd;
 
 					return nextSources.length >= MIXED_SOURCE_MIN_COUNT &&
 						nextSources.length <= MIXED_SOURCE_MAX_COUNT
-						? { mixedEnabledSources: nextSources }
+						? { mixedEnabledSources: [...nextSources, ...deprecatedSources] }
 						: {};
 				});
 			},
@@ -293,10 +340,21 @@ export const useStore = create<AppState>()(
 				const nextPath = path ?? get().addModalPath;
 				const { addModalOpen, addModalPath } = get();
 				if (addModalOpen && addModalPath === nextPath) return;
-				set({ addModalOpen: true, addModalPath: nextPath });
+				set({
+					addModalOpen: true,
+					addModalPath: nextPath,
+					cloudCollectionImportSource: null,
+				});
+			},
+			openCloudCollectionImport: (source) => {
+				set({
+					addModalOpen: true,
+					addModalPath: "",
+					cloudCollectionImportSource: source,
+				});
 			},
 			closeAddModal: () => {
-				set({ addModalOpen: false });
+				set({ addModalOpen: false, cloudCollectionImportSource: null });
 			},
 			setAddModalPath: (path: string) => {
 				set({ addModalPath: path });
@@ -327,6 +385,8 @@ export const useStore = create<AppState>()(
 			// 启动默认页面
 			startupPage: "home",
 			setStartupPage: (page: StartupPage) => set({ startupPage: page }),
+			zoomPercent: 100,
+			setZoomPercent: (percent: number) => set({ zoomPercent: percent }),
 
 			// TAG翻译功能（默认关闭）
 			tagTranslation: false,
@@ -366,22 +426,40 @@ export const useStore = create<AppState>()(
 				set({ searchKeyword: keyword });
 			},
 
-			// 排序偏好更新（数据刷新由 React Query 参数驱动）
-			updateSort: (option: SortOption, order: SortOrder) => {
-				const prevOption = get().sortOption;
-				const prevOrder = get().sortOrder;
+			// 原子提交筛选与排序，避免草稿调整产生查询参数中间态
+			applyGameFilterSort: (config: GameFilterSortConfig) => {
+				const normalizedTags = normalizeTagFilters(config.tagFilters);
+				const current = get();
+				const currentStatus = current.playStatusFilter;
+				const nextStatus = config.playStatusFilter;
+				const sameStatus = Array.isArray(currentStatus)
+					? Array.isArray(nextStatus) &&
+						currentStatus.length === nextStatus.length &&
+						currentStatus.every((status, index) => status === nextStatus[index])
+					: currentStatus === nextStatus;
+				if (
+					current.gameFilterType === config.gameFilterType &&
+					sameStatus &&
+					current.sortOption === config.sortOption &&
+					current.sortOrder === config.sortOrder &&
+					current.showCardSortFieldOverlay ===
+						config.showCardSortFieldOverlay &&
+					current.tagFilters.length === normalizedTags.length &&
+					current.tagFilters.every(
+						(tag, index) => tag === normalizedTags[index],
+					)
+				) {
+					return;
+				}
 
-				// 如果排序选项和顺序都没变，不做任何操作
-				if (prevOption === option && prevOrder === order) return;
-
-				// 设置排序选项
 				set({
-					sortOption: option,
-					sortOrder: order,
+					gameFilterType: config.gameFilterType,
+					playStatusFilter: config.playStatusFilter,
+					tagFilters: normalizedTags,
+					sortOption: config.sortOption,
+					sortOrder: config.sortOrder,
+					showCardSortFieldOverlay: config.showCardSortFieldOverlay,
 				});
-			},
-			setShowCardSortFieldOverlay: (enabled: boolean) => {
-				set({ showCardSortFieldOverlay: enabled });
 			},
 
 			// UI 操作方法
@@ -389,47 +467,8 @@ export const useStore = create<AppState>()(
 				set({ selectedGameId: id });
 			},
 
-			// 筛选偏好更新（数据刷新由 React Query 参数驱动）
-			setGameFilterType: (type: GameType) => {
-				const prevType = get().gameFilterType;
-
-				// 如果类型没变，不做任何操作
-				if (prevType === type) return;
-
-				// 设置新的筛选类型
-				set({ gameFilterType: type });
-			},
-			setPlayStatusFilter: (status: PlayStatusFilter) => {
-				const prevStatus = get().playStatusFilter;
-
-				if (prevStatus === status) return;
-
-				set({ playStatusFilter: status });
-			},
 			setTagFilters: (tags: string[]) => {
 				set({ tagFilters: normalizeTagFilters(tags) });
-			},
-			addTagFilter: (tag: string) => {
-				const trimmed = tag.trim();
-				if (!trimmed) return;
-				const current = get().tagFilters;
-				if (
-					current.some((item) => item.toLowerCase() === trimmed.toLowerCase())
-				) {
-					return;
-				}
-				set({ tagFilters: [...current, trimmed] });
-			},
-			removeTagFilter: (tag: string) => {
-				const normalized = tag.toLowerCase();
-				set({
-					tagFilters: get().tagFilters.filter(
-						(item) => item.toLowerCase() !== normalized,
-					),
-				});
-			},
-			clearTagFilters: () => {
-				set({ tagFilters: [] });
 			},
 
 			// 更新窗口状态管理
@@ -453,6 +492,24 @@ export const useStore = create<AppState>()(
 			},
 
 			// 分组分类选择状态初始值
+			collectionGameFilterSort: {
+				gameFilterType: "all",
+				playStatusFilter: "all",
+				tagFilters: [],
+				sortOption: "manual",
+				sortOrder: "asc",
+				showCardSortFieldOverlay: false,
+			},
+			applyCollectionGameFilterSort: (config) => {
+				set({
+					collectionGameFilterSort: {
+						...config,
+						tagFilters: normalizeTagFilters(config.tagFilters),
+					},
+				});
+			},
+			collectionGameSearch: "",
+			setCollectionGameSearch: (value) => set({ collectionGameSearch: value }),
 			currentGroupId: null,
 			selectedCategory: null,
 			collectionEntitySortField: "created_at",
@@ -511,6 +568,9 @@ export const useStore = create<AppState>()(
 				set({ proxyConfig: config });
 				settingsService.updateProxyConfig(config).catch(console.error);
 			},
+			isSystemProxyActive: false,
+			setSystemProxyActive: (active: boolean) =>
+				set({ isSystemProxyActive: active }),
 
 			// 初始化方法
 			initialize: async () => {
@@ -527,6 +587,28 @@ export const useStore = create<AppState>()(
 				await settingsService
 					.updateProxyConfig(proxyConfig)
 					.catch(console.error);
+
+				// 注册 Windows 系统代理变动监听并获取初始状态（通过版本号防止异步竞态覆盖）
+				if (isTauri()) {
+					try {
+						let eventRevision = 0;
+						await listen<{ enabled: boolean }>(
+							"system-proxy-changed",
+							(event) => {
+								eventRevision += 1;
+								set({ isSystemProxyActive: event.payload.enabled });
+							},
+						);
+						const initialRevision = eventRevision;
+						const enabled = await settingsService.getSystemProxyStatus();
+						// 仅在查询期间未收到过更新的系统代理事件时才写入初始查询结果
+						if (eventRevision === initialRevision) {
+							set({ isSystemProxyActive: enabled });
+						}
+					} catch (error) {
+						console.error("初始化系统代理状态失败:", error);
+					}
+				}
 			},
 		}),
 		{
@@ -534,6 +616,7 @@ export const useStore = create<AppState>()(
 			// 可选：定义哪些字段需要持久化存储
 			partialize: (state) => ({
 				// 排序偏好
+				collectionGameFilterSort: state.collectionGameFilterSort,
 				sortOption: state.sortOption,
 				sortOrder: state.sortOrder,
 				showCardSortFieldOverlay: state.showCardSortFieldOverlay,
@@ -544,10 +627,14 @@ export const useStore = create<AppState>()(
 				skipCloseRemind: state.skipCloseRemind,
 				defaultCloseAction: state.defaultCloseAction,
 				autoBackupOnExit: state.autoBackupOnExit,
+				scheduledBackupEnabled: state.scheduledBackupEnabled,
+				scheduledBackupIntervalHours: state.scheduledBackupIntervalHours,
 				autoBackupIncludeCovers: state.autoBackupIncludeCovers,
-				autoBackupMinIntervalHours: state.autoBackupMinIntervalHours,
+				exitBackupMinIntervalHours: state.exitBackupMinIntervalHours,
 				autoBackupRetentionCount: state.autoBackupRetentionCount,
 				autoBackupLastSuccessAt: state.autoBackupLastSuccessAt,
+				autoBackupLastScheduledAttemptAt:
+					state.autoBackupLastScheduledAttemptAt,
 				autoBackupLastError: state.autoBackupLastError,
 				// 数据来源选择
 				apiSource: state.apiSource,
@@ -560,6 +647,7 @@ export const useStore = create<AppState>()(
 				cardClickMode: state.cardClickMode,
 				// 启动默认页面
 				startupPage: state.startupPage,
+				zoomPercent: state.zoomPercent,
 				// VNDB标签翻译
 				tagTranslation: state.tagTranslation,
 				// 收藏同步开关

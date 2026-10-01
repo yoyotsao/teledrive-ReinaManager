@@ -156,12 +156,29 @@ fn resolve_paths_blocking(
     existing_directories: HashSet<String>,
     existing_steam_ids: HashSet<String>,
 ) -> BulkImportPathResult {
-    let path_bufs = paths.into_iter().map(PathBuf::from).collect::<Vec<_>>();
+    let mut issues = Vec::new();
+    let path_bufs = paths
+        .into_iter()
+        .filter_map(|path| {
+            let path = PathBuf::from(path);
+            if path.is_absolute() {
+                Some(path)
+            } else {
+                issues.push(issue(
+                    &path,
+                    BulkImportPathIssueCode::UnsupportedPath,
+                    "拖拽路径必须是绝对路径",
+                ));
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     let shortcut_paths = path_bufs
         .iter()
         .filter(|path| {
-            path.extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("url"))
+            path.extension().is_some_and(|extension| {
+                extension.eq_ignore_ascii_case("url") || extension == "desktop"
+            })
         })
         .map(PathBuf::as_path)
         .collect::<Vec<_>>();
@@ -170,12 +187,11 @@ fn resolve_paths_blocking(
     let mut seen_paths = HashSet::new();
     let mut seen_steam_ids = HashSet::new();
     let mut candidates = Vec::new();
-    let mut issues = Vec::new();
 
     for path in path_bufs {
-        let is_shortcut = path
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("url"));
+        let is_shortcut = path.extension().is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("url") || extension == "desktop"
+        });
         let candidate = if is_shortcut {
             match shortcut_results
                 .next()
@@ -273,7 +289,11 @@ pub async fn resolve_bulk_import_paths(
         .map_err(|error| format!("查询已有 Steam 启动 ID 失败: {error}"))?;
 
     tokio::task::spawn_blocking(move || {
-        resolve_paths_blocking(paths, existing_directories, existing_steam_ids)
+        resolve_paths_blocking(
+            paths,
+            crate::game::scan::resolve_configured_path_set(existing_directories),
+            existing_steam_ids,
+        )
     })
     .await
     .map_err(|error| format!("批量解析拖拽路径任务异常: {error}"))
@@ -374,5 +394,22 @@ mod tests {
             BulkImportPathIssueCode::UnsupportedPath
         );
         fs::remove_dir_all(root).expect("应能清理测试目录");
+    }
+
+    #[test]
+    fn variable_like_drag_path_is_not_expanded() {
+        #[cfg(windows)]
+        let path = r"%GAME_ROOT%\Title";
+        #[cfg(not(windows))]
+        let path = "$GAME_ROOT/Title";
+
+        let result = resolve_paths_blocking(vec![path.to_string()], HashSet::new(), HashSet::new());
+
+        assert!(result.candidates.is_empty());
+        assert_eq!(result.issues.len(), 1);
+        assert_eq!(
+            result.issues[0].code,
+            BulkImportPathIssueCode::UnsupportedPath
+        );
     }
 }

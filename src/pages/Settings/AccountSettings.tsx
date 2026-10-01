@@ -1,6 +1,7 @@
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ClearIcon from "@mui/icons-material/Clear";
+import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import LoginIcon from "@mui/icons-material/Login";
 import SyncIcon from "@mui/icons-material/Sync";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
@@ -34,6 +35,7 @@ import {
 import { getBgmAvatarUrl } from "@/metadata/api/bgm";
 import type { HikarinagiUserProfile } from "@/metadata/api/hikarinagi";
 import { snackbar } from "@/providers/snackBar";
+import { hasHikarinagiScope } from "@/services/oauth/hikarinagiAuthSession";
 import {
 	openExternal as openurl,
 	platformCapabilities,
@@ -230,7 +232,6 @@ export const BgmProviderSection = () => {
 	const { t } = useTranslation();
 	const {
 		bgmAuth,
-		isSettingsLoading,
 		inputToken,
 		isOAuthLoading,
 		isCompletingAuth,
@@ -245,20 +246,16 @@ export const BgmProviderSection = () => {
 		handleLogout,
 	} = useBgmAuthController();
 
-	const { syncBgmCollection, setSyncBgmCollection } = useStore(
-		useShallow((s) => ({
-			syncBgmCollection: s.syncBgmCollection,
-			setSyncBgmCollection: s.setSyncBgmCollection,
-		})),
-	);
+	const { syncBgmCollection, setSyncBgmCollection, openCloudCollectionImport } =
+		useStore(
+			useShallow((s) => ({
+				syncBgmCollection: s.syncBgmCollection,
+				setSyncBgmCollection: s.setSyncBgmCollection,
+				openCloudCollectionImport: s.openCloudCollectionImport,
+			})),
+		);
 
 	const isConnected = Boolean(bgmAuth?.access_token);
-
-	useEffect(() => {
-		if (!isSettingsLoading && !isConnected && syncBgmCollection) {
-			setSyncBgmCollection(false);
-		}
-	}, [isConnected, isSettingsLoading, setSyncBgmCollection, syncBgmCollection]);
 
 	return (
 		<Paper
@@ -355,7 +352,7 @@ export const BgmProviderSection = () => {
 									<Typography variant="body2">
 										{t(
 											"pages.Settings.bgmTokenSettings.tokenLogin",
-											"使用 Access Token 登录",
+											"Access Token 登录",
 										)}
 									</Typography>
 								</Stack>
@@ -426,6 +423,17 @@ export const BgmProviderSection = () => {
 					</Stack>
 				)}
 			</Box>
+			{isConnected && (
+				<Button
+					variant="outlined"
+					size="small"
+					startIcon={<CloudDownloadIcon />}
+					onClick={() => openCloudCollectionImport("bgm")}
+					className="mt-3"
+				>
+					{t("pages.Settings.importCloudCollection", "导入云端收藏")}
+				</Button>
+			)}
 
 			<Divider className="my-4" />
 
@@ -435,20 +443,22 @@ export const BgmProviderSection = () => {
 					<Stack direction="row" spacing={1} alignItems="center">
 						<SyncIcon fontSize="small" color="action" />
 						<Typography variant="subtitle2" className="font-semibold">
-							{t("pages.Settings.collectionSync.bgmTitle", "Bangumi 收藏同步")}
+							{t(
+								"pages.Settings.collectionSync.bgmTitle",
+								"启用 Bangumi 收藏同步",
+							)}
 						</Typography>
 					</Stack>
 					<Typography variant="caption" color="text.secondary">
 						{t(
 							"pages.Settings.collectionSync.bgmDescription",
-							"添加游戏时自动读取 BGM 状态，修改时实时同步回 BGM。",
+							"添加游戏时尝试读取 BGM 收藏状态，本地修改状态时同步回 BGM。",
 						)}
 					</Typography>
 				</Box>
 				<Switch
-					checked={isConnected && syncBgmCollection}
+					checked={syncBgmCollection}
 					onChange={(e) => setSyncBgmCollection(e.target.checked)}
-					disabled={isSettingsLoading || !isConnected}
 					color="primary"
 				/>
 			</Stack>
@@ -534,7 +544,6 @@ export const HikarinagiProviderSection = () => {
 	const {
 		hikarinagiAuth,
 		hikarinagiProfile,
-		isSettingsLoading,
 		isOAuthLoading,
 		isSaving,
 		handleOAuthLogin,
@@ -542,25 +551,19 @@ export const HikarinagiProviderSection = () => {
 		handleLogout,
 	} = useHikarinagiAuthController();
 
-	const { syncHikarinagiCollection, setSyncHikarinagiCollection } = useStore(
+	const {
+		syncHikarinagiCollection,
+		setSyncHikarinagiCollection,
+		openCloudCollectionImport,
+	} = useStore(
 		useShallow((s) => ({
 			syncHikarinagiCollection: s.syncHikarinagiCollection,
 			setSyncHikarinagiCollection: s.setSyncHikarinagiCollection,
+			openCloudCollectionImport: s.openCloudCollectionImport,
 		})),
 	);
 
 	const isConnected = Boolean(hikarinagiAuth?.access_token);
-
-	useEffect(() => {
-		if (!isSettingsLoading && !isConnected && syncHikarinagiCollection) {
-			setSyncHikarinagiCollection(false);
-		}
-	}, [
-		isConnected,
-		isSettingsLoading,
-		setSyncHikarinagiCollection,
-		syncHikarinagiCollection,
-	]);
 
 	return (
 		<Paper
@@ -639,6 +642,32 @@ export const HikarinagiProviderSection = () => {
 					</Stack>
 				)}
 			</Box>
+			{isConnected && (
+				<Stack direction="row" spacing={1} className="mt-3">
+					{hasHikarinagiScope(hikarinagiAuth, "catalog:full") ? (
+						<Button
+							variant="outlined"
+							size="small"
+							startIcon={<CloudDownloadIcon />}
+							onClick={() => openCloudCollectionImport("hikarinagi")}
+						>
+							{t("pages.Settings.importCloudCollection", "导入云端收藏")}
+						</Button>
+					) : (
+						<Button
+							variant="outlined"
+							size="small"
+							onClick={handleOAuthLogin}
+							disabled={isOAuthLoading || isSaving}
+						>
+							{t(
+								"pages.Settings.hikarinagiAuth.upgradePermission",
+								"更新授权以导入完整收藏",
+							)}
+						</Button>
+					)}
+				</Stack>
+			)}
 
 			<Divider className="my-4" />
 
@@ -650,21 +679,20 @@ export const HikarinagiProviderSection = () => {
 						<Typography variant="subtitle2" className="font-semibold">
 							{t(
 								"pages.Settings.collectionSync.hikarinagiTitle",
-								"Hikarinagi 游玩状态同步",
+								"启用 Hikarinagi 游玩状态同步",
 							)}
 						</Typography>
 					</Stack>
 					<Typography variant="caption" color="text.secondary">
 						{t(
 							"pages.Settings.collectionSync.hikarinagiDescription",
-							"添加游戏时自动读取 Hikarinagi 游玩状态，本地修改状态实时同步。",
+							"添加游戏时尝试读取 Hikarinagi 游玩状态，本地修改状态时同步回 Hikarinagi。",
 						)}
 					</Typography>
 				</Box>
 				<Switch
-					checked={isConnected && syncHikarinagiCollection}
+					checked={syncHikarinagiCollection}
 					onChange={(e) => setSyncHikarinagiCollection(e.target.checked)}
-					disabled={isSettingsLoading || !isConnected}
 					color="primary"
 				/>
 			</Stack>
@@ -678,17 +706,22 @@ export const HikarinagiAuthSettings = HikarinagiProviderSection;
 
 export const VndbProviderSection = () => {
 	const { t } = useTranslation();
-	const { data: settings, isLoading: isSettingsLoading } = useAllSettings();
+	const { data: settings } = useAllSettings();
 	const vndbToken = settings?.vndb_token ?? "";
 	const { data: vndbProfile, isLoading: isVndbProfileLoading } =
 		useVndbCurrentUserProfile();
 	const updateSettingsMutation = useUpdateSettings();
 	const [inputToken, setInputToken] = useState("");
 
-	const { syncVndbCollection, setSyncVndbCollection } = useStore(
+	const {
+		syncVndbCollection,
+		setSyncVndbCollection,
+		openCloudCollectionImport,
+	} = useStore(
 		useShallow((s) => ({
 			syncVndbCollection: s.syncVndbCollection,
 			setSyncVndbCollection: s.setSyncVndbCollection,
+			openCloudCollectionImport: s.openCloudCollectionImport,
 		})),
 	);
 
@@ -740,17 +773,6 @@ export const VndbProviderSection = () => {
 
 	const hasVndbToken = Boolean(vndbToken);
 	const isConnected = Boolean(hasVndbToken && vndbProfile);
-
-	useEffect(() => {
-		if (!isSettingsLoading && !hasVndbToken && syncVndbCollection) {
-			setSyncVndbCollection(false);
-		}
-	}, [
-		hasVndbToken,
-		isSettingsLoading,
-		setSyncVndbCollection,
-		syncVndbCollection,
-	]);
 
 	return (
 		<Paper
@@ -880,18 +902,31 @@ export const VndbProviderSection = () => {
 							},
 						}}
 					/>
-					<Box>
-						<Button
-							variant="outlined"
-							color="primary"
-							onClick={handleOpen}
-							size="small"
-						>
-							{t("pages.Settings.getToken", "获取令牌")}
-						</Button>
-					</Box>
+					{!hasVndbToken && (
+						<Box>
+							<Button
+								variant="outlined"
+								color="primary"
+								onClick={handleOpen}
+								size="small"
+							>
+								{t("pages.Settings.getToken", "获取令牌")}
+							</Button>
+						</Box>
+					)}
 				</Stack>
 			</Box>
+			{isConnected && vndbProfile?.permissions.includes("listread") && (
+				<Button
+					variant="outlined"
+					size="small"
+					startIcon={<CloudDownloadIcon />}
+					onClick={() => openCloudCollectionImport("vndb")}
+					className="mt-3"
+				>
+					{t("pages.Settings.importCloudCollection", "导入云端收藏")}
+				</Button>
+			)}
 
 			<Divider className="my-4" />
 
@@ -901,20 +936,22 @@ export const VndbProviderSection = () => {
 					<Stack direction="row" spacing={1} alignItems="center">
 						<SyncIcon fontSize="small" color="action" />
 						<Typography variant="subtitle2" className="font-semibold">
-							{t("pages.Settings.collectionSync.vndbTitle", "VNDB 收藏同步")}
+							{t(
+								"pages.Settings.collectionSync.vndbTitle",
+								"启用 VNDB 收藏同步",
+							)}
 						</Typography>
 					</Stack>
 					<Typography variant="caption" color="text.secondary">
 						{t(
 							"pages.Settings.collectionSync.vndbDescription",
-							"添加游戏时自动读取 VNDB 收藏状态，修改时实时同步回 BGM。",
+							"添加游戏时尝试读取 VNDB 收藏状态，本地修改状态时同步回 VNDB。",
 						)}
 					</Typography>
 				</Box>
 				<Switch
-					checked={hasVndbToken && syncVndbCollection}
+					checked={syncVndbCollection}
 					onChange={(e) => setSyncVndbCollection(e.target.checked)}
-					disabled={isSettingsLoading || !hasVndbToken}
 					color="primary"
 				/>
 			</Stack>

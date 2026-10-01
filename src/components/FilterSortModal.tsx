@@ -5,6 +5,7 @@ import FilterAlt from "@mui/icons-material/FilterAlt";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import SortIcon from "@mui/icons-material/Sort";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -26,20 +27,23 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useShallow } from "zustand/react/shallow";
 import {
 	type GameListScopeOptions,
+	getActiveGameFilterCount,
 	useFilteredGamesFacade,
+	useGameListPreferences,
 } from "@/hooks/features/games/useGameListFacade";
 import { snackbar } from "@/providers/snackBar";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke/types";
-import { useStore } from "@/store/appStore";
+import {
+	type CollectionGameFilterSortConfig,
+	useStore,
+} from "@/store/appStore";
 import {
 	ALL_PLAY_STATUSES,
 	type CollectionEntitySortField,
 	getPlayStatusLabel,
 	type PlayStatus,
-	type PlayStatusFilter,
 } from "@/types/collection";
 import {
 	buildNormalizedTagMap,
@@ -66,6 +70,8 @@ const gameSortOptions: Array<{ value: SortOption; labelKey: string }> = [
 ];
 
 const MAX_TAG_SUGGESTIONS = 8;
+const selectedStatusClassName =
+	"!bg-[var(--mui-palette-primary-main)] !text-[var(--mui-palette-primary-contrastText)] hover:!bg-[var(--mui-palette-primary-dark)]";
 
 interface GameFilterSortModalProps extends GameListScopeOptions {
 	mode?: "game";
@@ -100,6 +106,7 @@ interface SortSectionProps<T extends string> {
 	onSortValueChange: (value: T) => void;
 	onSortOrderChange: (order: SortOrder) => void;
 	footer?: React.ReactNode;
+	showDirection?: boolean;
 }
 
 function getCollectionEntitySortFieldLabel(
@@ -157,7 +164,7 @@ function FilterSortDialog({
 					{t("components.FilterSortModal.cancel", "取消")}
 				</Button>
 				<Button type="submit" variant="contained">
-					{t("components.FilterSortModal.confirm", "确认")}
+					{t("components.FilterSortModal.apply", "应用")}
 				</Button>
 			</DialogActions>
 		</Dialog>
@@ -171,6 +178,7 @@ function SortSection<T extends string>({
 	onSortValueChange,
 	onSortOrderChange,
 	footer,
+	showDirection = true,
 }: SortSectionProps<T>) {
 	const { t } = useTranslation();
 	const sortMethodLabel = t(
@@ -203,48 +211,40 @@ function SortSection<T extends string>({
 						))}
 					</Select>
 				</FormControl>
-				<ToggleButtonGroup
-					exclusive
-					fullWidth
-					size="small"
-					value={sortOrder}
-					aria-label={t("components.FilterSortModal.sortOrder", "排序方向")}
-					onChange={(_, value: SortOrder | null) => {
-						if (value) onSortOrderChange(value);
-					}}
-				>
-					<ToggleButton value="asc" className="gap-1">
-						<ArrowUpwardIcon fontSize="small" />
-						{t("components.FilterSortModal.ascending", "升序")}
-					</ToggleButton>
-					<ToggleButton value="desc" className="gap-1">
-						<ArrowDownwardIcon fontSize="small" />
-						{t("components.FilterSortModal.descending", "降序")}
-					</ToggleButton>
-				</ToggleButtonGroup>
+				{showDirection && (
+					<ToggleButtonGroup
+						exclusive
+						fullWidth
+						size="small"
+						value={sortOrder}
+						aria-label={t("components.FilterSortModal.sortOrder", "排序方向")}
+						onChange={(_, value: SortOrder | null) => {
+							if (value) onSortOrderChange(value);
+						}}
+					>
+						<ToggleButton value="asc" className="gap-1">
+							<ArrowUpwardIcon fontSize="small" />
+							{t("components.FilterSortModal.ascending", "升序")}
+						</ToggleButton>
+						<ToggleButton value="desc" className="gap-1">
+							<ArrowDownwardIcon fontSize="small" />
+							{t("components.FilterSortModal.descending", "降序")}
+						</ToggleButton>
+					</ToggleButtonGroup>
+				)}
 				{footer}
 			</div>
 		</Box>
 	);
 }
 
-function getActiveFilterCount(
-	gameFilterType: GameType,
-	playStatusFilter: PlayStatusFilter,
-	tagFilters: string[],
-): number {
-	let count = 0;
-	if (gameFilterType !== "all") count += 1;
-	if (playStatusFilter !== "all") count += 1;
-	if (tagFilters.length > 0) count += 1;
-	return count;
-}
-
 function GameFilterSortModal({
 	scopeGameIds,
 	applyNsfwFilter,
+	preferencesScope,
 }: GameFilterSortModalProps) {
 	const { t } = useTranslation();
+	const isCollection = preferencesScope === "collection";
 	const {
 		gameFilterType,
 		playStatusFilter,
@@ -252,48 +252,41 @@ function GameFilterSortModal({
 		sortOption,
 		sortOrder,
 		showCardSortFieldOverlay,
-		setGameFilterType,
-		setPlayStatusFilter,
-		setTagFilters,
-		updateSort,
-		setShowCardSortFieldOverlay,
-	} = useStore(
-		useShallow((s) => ({
-			gameFilterType: s.gameFilterType,
-			playStatusFilter: s.playStatusFilter,
-			tagFilters: s.tagFilters,
-			sortOption: s.sortOption,
-			sortOrder: s.sortOrder,
-			showCardSortFieldOverlay: s.showCardSortFieldOverlay,
-			setGameFilterType: s.setGameFilterType,
-			setPlayStatusFilter: s.setPlayStatusFilter,
-			setTagFilters: s.setTagFilters,
-			updateSort: s.updateSort,
-			setShowCardSortFieldOverlay: s.setShowCardSortFieldOverlay,
-		})),
+	} = useGameListPreferences(preferencesScope);
+	const applyLibraryFilterSort = useStore((s) => s.applyGameFilterSort);
+	const applyCollectionFilterSort = useStore(
+		(s) => s.applyCollectionGameFilterSort,
 	);
+	const applyGameFilterSort = (config: CollectionGameFilterSortConfig) => {
+		if (isCollection) applyCollectionFilterSort(config);
+		else if (config.sortOption !== "manual")
+			applyLibraryFilterSort({ ...config, sortOption: config.sortOption });
+	};
 	const { baseFilteredGames } = useFilteredGamesFacade({
 		scopeGameIds,
 		applyNsfwFilter,
+		preferencesScope,
 	});
 
 	const [open, setOpen] = useState(false);
-	const [localFilterType, setLocalFilterType] =
-		useState<GameType>(gameFilterType);
-	const [localPlayStatusFilter, setLocalPlayStatusFilter] =
-		useState<PlayStatusFilter>(playStatusFilter);
-	const [localTagFilters, setLocalTagFilters] = useState<string[]>(tagFilters);
-	const [tagInput, setTagInput] = useState("");
-	const [localSortOption, setLocalSortOption] =
-		useState<SortOption>(sortOption);
-	const [localSortOrder, setLocalSortOrder] = useState<SortOrder>(sortOrder);
-	const [localShowCardSortFieldOverlay, setLocalShowCardSortFieldOverlay] =
-		useState(showCardSortFieldOverlay);
-	const activeFilterCount = getActiveFilterCount(
+	const [draft, setDraft] = useState<CollectionGameFilterSortConfig>(() => ({
 		gameFilterType,
 		playStatusFilter,
 		tagFilters,
-	);
+		sortOption,
+		sortOrder,
+		showCardSortFieldOverlay,
+	}));
+	const [tagInput, setTagInput] = useState("");
+	const selectedStatuses = Array.isArray(draft.playStatusFilter)
+		? draft.playStatusFilter
+		: null;
+	const isMultiStatus = selectedStatuses !== null;
+	const activeFilterCount = getActiveGameFilterCount({
+		gameFilterType,
+		playStatusFilter,
+		tagFilters,
+	});
 
 	const knownTags = useMemo(() => {
 		if (!open) {
@@ -319,20 +312,22 @@ function GameFilterSortModal({
 	const tagOptions = useMemo(() => {
 		return filterTagSuggestions(
 			knownTagByNormalized,
-			localTagFilters,
+			draft.tagFilters,
 			tagInput,
 			MAX_TAG_SUGGESTIONS,
 		);
-	}, [knownTagByNormalized, localTagFilters, tagInput]);
+	}, [knownTagByNormalized, draft.tagFilters, tagInput]);
 
 	const handleOpen = () => {
-		setLocalFilterType(gameFilterType);
-		setLocalPlayStatusFilter(playStatusFilter);
-		setLocalTagFilters(tagFilters);
+		setDraft({
+			gameFilterType,
+			playStatusFilter,
+			tagFilters,
+			sortOption,
+			sortOrder,
+			showCardSortFieldOverlay,
+		});
 		setTagInput("");
-		setLocalSortOption(sortOption);
-		setLocalSortOrder(sortOrder);
-		setLocalShowCardSortFieldOverlay(showCardSortFieldOverlay);
 		setOpen(true);
 	};
 
@@ -340,19 +335,50 @@ function GameFilterSortModal({
 
 	const handleClearFilters = (event: React.MouseEvent<HTMLButtonElement>) => {
 		event.stopPropagation();
-		setGameFilterType("all");
-		setPlayStatusFilter("all");
-		setTagFilters([]);
+		applyGameFilterSort({
+			gameFilterType: "all",
+			playStatusFilter: "all",
+			tagFilters: [],
+			sortOption,
+			sortOrder,
+			showCardSortFieldOverlay,
+		});
 	};
 
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		setGameFilterType(localFilterType);
-		setPlayStatusFilter(localPlayStatusFilter);
-		setTagFilters(localTagFilters);
-		updateSort(localSortOption, localSortOrder);
-		setShowCardSortFieldOverlay(localShowCardSortFieldOverlay);
+		applyGameFilterSort(draft);
 		handleClose();
+	};
+
+	const handleInvertStatuses = () => {
+		setDraft((current) => {
+			const selected = current.playStatusFilter;
+			if (!Array.isArray(selected)) return current;
+			return {
+				...current,
+				playStatusFilter: ALL_PLAY_STATUSES.filter(
+					(status) => !selected.includes(status),
+				),
+			};
+		});
+	};
+
+	const handleStatusClick = (status: PlayStatus) => {
+		setDraft((current) => {
+			const selected = current.playStatusFilter;
+			if (!Array.isArray(selected)) {
+				return { ...current, playStatusFilter: status };
+			}
+			return {
+				...current,
+				playStatusFilter: ALL_PLAY_STATUSES.filter((candidate) =>
+					candidate === status
+						? !selected.includes(candidate)
+						: selected.includes(candidate),
+				),
+			};
+		});
 	};
 
 	const handleTagFiltersChange = (nextTags: string[]) => {
@@ -360,7 +386,7 @@ function GameFilterSortModal({
 			.map((tag) => findTagByInput(knownTagByNormalized, tag))
 			.filter((tag): tag is string => Boolean(tag));
 		const normalizedTags = normalizeTagFilters(matchedTags);
-		setLocalTagFilters(normalizedTags);
+		setDraft((current) => ({ ...current, tagFilters: normalizedTags }));
 	};
 
 	const handleTagInputKeyDown = (
@@ -374,7 +400,7 @@ function GameFilterSortModal({
 		event.stopPropagation();
 		const matchedTag = findTagByInput(knownTagByNormalized, trimmed);
 		if (matchedTag) {
-			handleTagFiltersChange([...localTagFilters, matchedTag]);
+			handleTagFiltersChange([...draft.tagFilters, matchedTag]);
 		} else {
 			snackbar.warning(
 				t("components.FilterSortModal.tagNotMatched", {
@@ -443,10 +469,13 @@ function GameFilterSortModal({
 							<FormControl fullWidth size="small">
 								<Select
 									labelId="library-filter-label"
-									value={localFilterType}
+									value={draft.gameFilterType}
 									displayEmpty
 									onChange={(event: SelectChangeEvent) =>
-										setLocalFilterType(event.target.value as GameType)
+										setDraft((current) => ({
+											...current,
+											gameFilterType: event.target.value as GameType,
+										}))
 									}
 								>
 									{filterTypeOptions.map((option) => (
@@ -462,32 +491,81 @@ function GameFilterSortModal({
 								<Typography variant="caption" color="text.secondary">
 									{t("components.FilterSortModal.playStatusFilter", "游戏状态")}
 								</Typography>
+								<button
+									type="button"
+									role="switch"
+									aria-checked={isMultiStatus}
+									className="ml-auto h-5 flex items-center gap-1 border-0 bg-transparent p-0 text-12px text-[var(--mui-palette-text-secondary)] cursor-pointer hover:text-[var(--mui-palette-primary-main)]"
+									onClick={() =>
+										setDraft((current) => ({
+											...current,
+											playStatusFilter: Array.isArray(current.playStatusFilter)
+												? "all"
+												: [],
+										}))
+									}
+								>
+									{t("components.FilterSortModal.multiSelect", "多选")}
+									<span
+										aria-hidden="true"
+										className={`relative h-4 w-7 rounded-full transition-colors ${isMultiStatus ? "bg-[var(--mui-palette-primary-main)]" : "bg-[var(--mui-palette-action-disabledBackground)]"}`}
+									>
+										<span
+											className={`absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${isMultiStatus ? "translate-x-3" : ""}`}
+										/>
+									</span>
+								</button>
 							</div>
 							<fieldset className="grid w-max grid-flow-col auto-cols-max gap-1.5 border-0 p-0 m-0">
 								<legend className="sr-only">
 									{t("components.FilterSortModal.playStatusFilter", "游戏状态")}
 								</legend>
-								<ToggleButton
-									size="small"
-									value="all"
-									selected={localPlayStatusFilter === "all"}
-									onClick={() => setLocalPlayStatusFilter("all")}
-									className="min-w-0 whitespace-nowrap px-2"
-								>
-									{t("components.FilterSortModal.allStatuses", "全部状态")}
-								</ToggleButton>
-								{ALL_PLAY_STATUSES.map((status: PlayStatus) => (
+								{isMultiStatus ? (
 									<ToggleButton
-										key={status}
+										type="button"
 										size="small"
-										value={status}
-										selected={localPlayStatusFilter === status}
-										onClick={() => setLocalPlayStatusFilter(status)}
+										value="invert"
+										onClick={handleInvertStatuses}
 										className="min-w-0 whitespace-nowrap px-2"
 									>
-										{getPlayStatusLabel(t, status)}
+										<SwapHorizIcon className="mr-0.5 !text-16px" />
+										{t("components.FilterSortModal.invertStatuses", "反选")}
 									</ToggleButton>
-								))}
+								) : (
+									<ToggleButton
+										type="button"
+										size="small"
+										value="all"
+										selected={draft.playStatusFilter === "all"}
+										onClick={() =>
+											setDraft((current) => ({
+												...current,
+												playStatusFilter: "all",
+											}))
+										}
+										className={`min-w-0 whitespace-nowrap px-2 ${draft.playStatusFilter === "all" ? selectedStatusClassName : ""}`}
+									>
+										{t("components.FilterSortModal.allStatuses", "全部状态")}
+									</ToggleButton>
+								)}
+								{ALL_PLAY_STATUSES.map((status: PlayStatus) => {
+									const selected = selectedStatuses
+										? selectedStatuses.includes(status)
+										: draft.playStatusFilter === status;
+									return (
+										<ToggleButton
+											type="button"
+											key={status}
+											size="small"
+											value={status}
+											selected={selected}
+											onClick={() => handleStatusClick(status)}
+											className={`min-w-0 whitespace-nowrap px-2 ${selected ? selectedStatusClassName : ""}`}
+										>
+											{getPlayStatusLabel(t, status)}
+										</ToggleButton>
+									);
+								})}
 							</fieldset>
 						</div>
 						<div className="flex flex-col gap-2">
@@ -496,10 +574,10 @@ function GameFilterSortModal({
 								<Typography variant="caption" color="text.secondary">
 									{t("components.FilterSortModal.tagFilter", "Tag 筛选")}
 								</Typography>
-								{localTagFilters.length > 0 && (
+								{draft.tagFilters.length > 0 && (
 									<Chip
 										size="small"
-										label={localTagFilters.length}
+										label={draft.tagFilters.length}
 										color="primary"
 									/>
 								)}
@@ -508,7 +586,7 @@ function GameFilterSortModal({
 								multiple
 								freeSolo
 								options={tagOptions}
-								value={localTagFilters}
+								value={draft.tagFilters}
 								inputValue={tagInput}
 								filterOptions={(options) => options}
 								onInputChange={(_, value, reason) => {
@@ -544,7 +622,7 @@ function GameFilterSortModal({
 										{...params}
 										size="small"
 										placeholder={
-											localTagFilters.length === 0
+											draft.tagFilters.length === 0
 												? t(
 														"components.FilterSortModal.tagFilterPlaceholder",
 														"输入原始 tag 后按回车添加",
@@ -568,32 +646,63 @@ function GameFilterSortModal({
 				</Box>
 
 				<SortSection
-					options={gameSortOptions.map((option) => ({
-						value: option.value,
-						label: t(`components.FilterSortModal.${option.labelKey}`),
-					}))}
-					sortValue={localSortOption}
-					sortOrder={localSortOrder}
-					onSortValueChange={setLocalSortOption}
-					onSortOrderChange={setLocalSortOrder}
+					options={[
+						...(isCollection
+							? [
+									{
+										value: "manual" as const,
+										label: t("pages.Collection.gameSort.manual", "手动排序"),
+									},
+								]
+							: []),
+						...gameSortOptions.map((option) => ({
+							value: option.value,
+							label: t(`components.FilterSortModal.${option.labelKey}`),
+						})),
+					]}
+					sortValue={draft.sortOption}
+					showDirection={draft.sortOption !== "manual"}
+					sortOrder={draft.sortOrder}
+					onSortValueChange={(option) =>
+						setDraft((current) => ({ ...current, sortOption: option }))
+					}
+					onSortOrderChange={(order) =>
+						setDraft((current) => ({ ...current, sortOrder: order }))
+					}
 					footer={
-						<FormControlLabel
-							control={
-								<Switch
-									size="small"
-									checked={localShowCardSortFieldOverlay}
-									onChange={(event) =>
-										setLocalShowCardSortFieldOverlay(event.target.checked)
-									}
-								/>
-							}
-							label={t(
-								"components.FilterSortModal.showCardSortFieldOverlay",
-								"封面展示排序字段",
-							)}
-							labelPlacement="start"
-							className="ml-0 justify-between"
-						/>
+						draft.sortOption === "manual" ? (
+							<Typography
+								variant="caption"
+								color="text.secondary"
+								className="max-w-100"
+							>
+								{t(
+									"pages.Collection.gameSort.manualHint",
+									"按已保存的手动顺序显示；清除搜索和筛选后可拖拽调整。",
+								)}
+							</Typography>
+						) : (
+							<FormControlLabel
+								control={
+									<Switch
+										size="small"
+										checked={draft.showCardSortFieldOverlay}
+										onChange={(event) =>
+											setDraft((current) => ({
+												...current,
+												showCardSortFieldOverlay: event.target.checked,
+											}))
+										}
+									/>
+								}
+								label={t(
+									"components.FilterSortModal.showCardSortFieldOverlay",
+									"封面展示排序字段",
+								)}
+								labelPlacement="start"
+								className="ml-0 justify-between"
+							/>
+						)
 					}
 				/>
 			</FilterSortDialog>
@@ -609,21 +718,16 @@ function CollectionEntityFilterSortModal({
 }: CollectionEntityFilterSortModalProps) {
 	const { t } = useTranslation();
 	const [open, setOpen] = useState(false);
-	const [localSortField, setLocalSortField] =
-		useState<CollectionEntitySortField>(sortField);
-	const [localSortOrder, setLocalSortOrder] = useState<SortOrder>(sortOrder);
-
-	const handleOpen = () => {
-		setLocalSortField(sortField);
-		setLocalSortOrder(sortOrder);
-		setOpen(true);
-	};
+	const [draft, setDraft] = useState({ sortField, sortOrder });
 
 	const handleClose = () => setOpen(false);
-
+	const handleOpen = () => {
+		setDraft({ sortField, sortOrder });
+		setOpen(true);
+	};
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		onApply(localSortField, localSortOrder);
+		onApply(draft.sortField, draft.sortOrder);
 		handleClose();
 	};
 
@@ -647,10 +751,14 @@ function CollectionEntityFilterSortModal({
 						value: field,
 						label: getCollectionEntitySortFieldLabel(t, field),
 					}))}
-					sortValue={localSortField}
-					sortOrder={localSortOrder}
-					onSortValueChange={setLocalSortField}
-					onSortOrderChange={setLocalSortOrder}
+					sortValue={draft.sortField}
+					sortOrder={draft.sortOrder}
+					onSortValueChange={(field) =>
+						setDraft((current) => ({ ...current, sortField: field }))
+					}
+					onSortOrderChange={(order) =>
+						setDraft((current) => ({ ...current, sortOrder: order }))
+					}
 				/>
 			</FilterSortDialog>
 		</>

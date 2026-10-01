@@ -2,7 +2,6 @@ export type ApiRateLimitSource =
 	| "bgm"
 	| "vndb"
 	| "ymgal"
-	| "kun"
 	| "dlsite"
 	| "erogamescape"
 	| "hikarinagi"
@@ -77,14 +76,6 @@ const API_RATE_LIMIT_POLICIES: Record<ApiRateLimitSource, ApiRateLimitPolicy> =
 			max429Retries: 0,
 			stopOn429: true,
 		},
-		kun: {
-			source: "kun",
-			minIntervalMs: 500,
-			defaultBackoffMs: 0,
-			maxBackoffMs: 0,
-			max429Retries: 0,
-			stopOn429: true,
-		},
 		dlsite: {
 			source: "dlsite",
 			minIntervalMs: 2000,
@@ -103,11 +94,11 @@ const API_RATE_LIMIT_POLICIES: Record<ApiRateLimitSource, ApiRateLimitPolicy> =
 		},
 		hikarinagi: {
 			source: "hikarinagi",
-			minIntervalMs: 500,
-			defaultBackoffMs: 0,
-			maxBackoffMs: 0,
-			max429Retries: 0,
-			stopOn429: true,
+			minIntervalMs: 250,
+			defaultBackoffMs: 60 * 1000,
+			maxBackoffMs: 2 * 60 * 1000,
+			max429Retries: 2,
+			stopOn429: false,
 		},
 		hgamefree: {
 			source: "hgamefree",
@@ -137,7 +128,6 @@ const rateLimitStates: Record<ApiRateLimitSource, ApiRateLimitState> = {
 	vndb: createInitialState(),
 	bgm: createInitialState(),
 	ymgal: createInitialState(),
-	kun: createInitialState(),
 	dlsite: createInitialState(),
 	erogamescape: createInitialState(),
 	hikarinagi: createInitialState(),
@@ -267,7 +257,9 @@ export function handleApiRateLimited(
 			? "Bangumi 请求被限速，当前任务已停止，请 1 小时后手动重试"
 			: source === "vndb"
 				? "VNDB 请求过于频繁，正在短暂退避"
-				: "请求被限速，当前任务已停止";
+				: source === "hikarinagi"
+					? "Hikarinagi 请求过于频繁，正在等待配额恢复"
+					: "请求被限速，当前任务已停止";
 
 	if (policy.stopOn429) {
 		notifyRateLimitListeners();
