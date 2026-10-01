@@ -10,6 +10,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { patchGameCaches } from "@/hooks/queries/gameCachePatch";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { gameKeys } from "@/hooks/queries/useGames";
 import { gameService } from "@/services/invoke";
 import type { FullGameData } from "@/types";
@@ -20,8 +21,8 @@ import type { PlayStatus } from "@/types/collection";
 // ============================================================================
 
 export const playStatusKeys = {
-	all: ["playStatus"] as const,
-	game: (gameId: number) => ["playStatus", "game", gameId] as const,
+	all: serverKey("playStatus"),
+	game: (gameId: number) => [...playStatusKeys.all, "game", gameId] as const,
 };
 
 // ============================================================================

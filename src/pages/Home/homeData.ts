@@ -14,7 +14,7 @@ export interface ActivityItem {
 	type: Exclude<ActivityFilter, "all">;
 	gameId: number;
 	gameTitle: string;
-	imageUrl: string;
+	game: GameData;
 	time: number;
 	date: string;
 	duration?: number;
@@ -36,7 +36,6 @@ export function getVisibleCover(
 export function buildActivities(
 	games: GameData[],
 	sessions: GameSession[],
-	replaceNsfwCover: boolean,
 ): ActivityItem[] {
 	const gameById = new Map(games.map((game) => [game.id, game]));
 	const activities = new Map<string, ActivityItem>();
@@ -61,7 +60,7 @@ export function buildActivities(
 			type: "play",
 			gameId: game.id,
 			gameTitle: getGameDisplayName(game),
-			imageUrl: getVisibleCover(game, replaceNsfwCover),
+			game,
 			time: session.end_time,
 			date,
 			duration: session.duration ?? 0,
@@ -76,7 +75,7 @@ export function buildActivities(
 			type: "add",
 			gameId: game.id,
 			gameTitle: getGameDisplayName(game),
-			imageUrl: getVisibleCover(game, replaceNsfwCover),
+			game,
 			time: game.created_at,
 			date: getLocalDateString(game.created_at),
 		});

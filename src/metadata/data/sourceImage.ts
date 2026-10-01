@@ -1,4 +1,5 @@
 import type { FullGameData, SourceType } from "@/types";
+import { isSourceType } from "@/types";
 import { getSourceRecordMap, type SourceRecordPayload } from "../sourceRecord";
 import {
 	getRuntimeSourceAdapter,
@@ -14,6 +15,11 @@ export interface SourceImageOption {
 	source: SourceType;
 	image: string;
 }
+
+export type DisplaySourceImagePayload = SourceRecordPayload & {
+	id_type?: string | null;
+	custom_data?: { cover_source?: SourceType | null } | null;
+};
 
 export function getSourceImageMap(game: SourceRecordPayload): SourceImageData {
 	const sourceMap = getSourceRecordMap(game);
@@ -43,6 +49,19 @@ export function resolveSourceImage(
 		if (image) return image;
 	}
 
+	return undefined;
+}
+
+export function resolveDisplaySourceImage(
+	game: DisplaySourceImagePayload,
+): string | undefined {
+	const sources = getSourceImageMap(game);
+	if (game.id_type && isSourceType(game.id_type)) {
+		return sources[game.id_type]?.image ?? undefined;
+	}
+	if (game.id_type === "mixed") {
+		return resolveSourceImage(sources, game.custom_data?.cover_source);
+	}
 	return undefined;
 }
 

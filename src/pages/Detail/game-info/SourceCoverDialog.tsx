@@ -11,7 +11,7 @@ import {
 	Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { SmartImage } from "@/components/SmartImage";
+import { ProxiedImage } from "@/components/ProxiedImage";
 import { getRuntimeSourceAdapter } from "@/metadata";
 import type { SourceImageOption } from "@/metadata/data/sourceImage";
 import type { SourceType } from "@/types";
@@ -102,11 +102,10 @@ export function SourceCoverDialog({
 											: "transparent",
 									}}
 								>
-									<SmartImage
+									<ProxiedImage
 										src={option.image}
 										alt={getSourceLabel(option.source)}
 										className="block w-full aspect-[3/4] object-cover"
-										sx={{ bgcolor: "action.hover" }}
 									/>
 									<Box className="p-1">
 										<Typography variant="caption" component="div">

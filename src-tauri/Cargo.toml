@@ -1,9 +1,9 @@
 [workspace]
-members = ["reina-path", "migration", "reina-download"]
+members = ["reina-path", "migration", "reina-download", "reina-core", "reina-server"]
 
 [package]
 name = "ReinaManager"
-version = "0.30.0"
+version = "0.31.0"
 description = "A lightweight visual novel manager"
 authors = ["huoshen80"]
 license = "GNU AFFERO GENERAL PUBLIC LICENSE"
@@ -18,12 +18,12 @@ name = "reina_manager_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "~2.6.3", features = [] }
+tauri-build = { version = "~2.7.1", features = [] }
 dotenvy = "0.15.7"
-sevenz-rust2 = { version = "0.22.2", default-features = false, features = ["util"] }
+sevenz-rust2 = { version = "0.23.0", default-features = false, features = ["util"] }
 sha2 = "0.11.0"
 tar = "0.4.46"
-ureq = { version = "3.4.0", default-features = false, features = ["rustls"] }
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
 xz2 = "0.1.7"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
@@ -35,26 +35,26 @@ steamlocate = "2.1.1"
 log = "0.4.34"
 
 # Tauri core and plugins
-tauri = { version = "~2.11.5", features = ["protocol-asset", "tray-icon"] }
-tauri-plugin-autostart = "~2.5.1"
-tauri-plugin-dialog = { version = "~2.7.3", features = [
+tauri = { version = "~2.12.1", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-autostart = "~2.7.0"
+tauri-plugin-dialog = { version = "~2.8.1", features = [
     "xdg-portal",
 ], default-features = false }
-tauri-plugin-deep-link = "~2.4.10"
-tauri-plugin-http = { version = "~2.6.0", default-features = false, features = [
+tauri-plugin-deep-link = "~2.6.1"
+tauri-plugin-http = { version = "~2.8.0", default-features = false, features = [
     "rustls-tls",
     "http2",
     "charset",
     "system-proxy",
     "unsafe-headers",
 ] }
-tauri-plugin-log = "~2.9.1"
-tauri-plugin-opener = "~2.5.5"
-tauri-plugin-shell = "~2.3.6"
-tauri-plugin-single-instance = { version = "~2.4.4", features = ["deep-link"] }
-tauri-plugin-updater = "~2.11.0"
-tauri-plugin-window-state = "=2.2.3"
-tauri-plugin-store = "~2.4.4"
+tauri-plugin-log = "~2.10.0"
+tauri-plugin-opener = "~2.7.0"
+tauri-plugin-shell = "~2.4.0"
+tauri-plugin-single-instance = { version = "~2.5.2", features = ["deep-link"] }
+tauri-plugin-updater = "~2.13.1"
+tauri-plugin-window-state = "~2.5.0"
+tauri-plugin-store = "~2.5.0"
 
 # System / utilities
 base64 = "0.23.1"
@@ -62,7 +62,7 @@ arboard = { version = "3.6.1", default-features = false, features = [
     "image-data",
     "wayland-data-control",
 ] }
-sevenz-rust2 = { version = "0.22.2", default-features = false, features = [
+sevenz-rust2 = { version = "0.23.0", default-features = false, features = [
     "compress",
     "util",
     "zstd",
@@ -75,7 +75,7 @@ reina-download = { path = "reina-download" }
 
 # Async runtime / DB
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "time", "sync", "fs", "io-util", "net", "process"] }
-sea-orm = { version = "2.0.2", default-features = false, features = [
+sea-orm = { version = "2.0.4", default-features = false, features = [
     "sqlx-sqlite",
     "runtime-tokio",
     "macros",
@@ -88,11 +88,13 @@ url = "2.5.8"
 pinyin = "0.11.0"
 walkdir = "2.5.0"
 migration = { path = "migration" }
+reina-core = { path = "reina-core" }
 reina-path = { path = "reina-path" }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 # Windows system APIs
 [target.'cfg(target_os = "windows")'.dependencies]
+webview2-com = "0.39.1"
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_Security",
@@ -105,10 +107,10 @@ windows = { version = "0.62.2", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "0.29", features = ["signal"] }
+nix = { version = "0.31", features = ["signal"] }
 xcb = "1.7.1"
 zbus = "5.19.0"
-zbus_systemd = { version = "0.26100.0", features = ["systemd1"] }
+zbus_systemd = { version = "0.26200.0", features = ["systemd1"] }
 
 
 [profile.dev]

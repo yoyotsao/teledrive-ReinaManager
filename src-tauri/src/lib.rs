@@ -56,6 +56,8 @@ use utils::{
 
 #[cfg(target_os = "windows")]
 use utils::http::{SystemProxyMonitor, start_system_proxy_monitor};
+#[cfg(target_os = "windows")]
+use utils::zoom::listen_to_webview_zoom;
 
 const LOG_MAX_FILE_SIZE: u128 = 1_000_000;
 const LOG_KEEP_FILE_COUNT: usize = 5;
@@ -195,6 +197,7 @@ pub fn run() {
             add_games_to_collections,
             set_game_collections,
             update_category_games,
+            reorder_category_games,
             count_games_in_group,
             get_categories_with_count,
         ])
@@ -211,6 +214,11 @@ pub fn run() {
             };
 
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "windows")]
+                if let Err(error) = listen_to_webview_zoom(&window) {
+                    eprintln!("监听 WebView 缩放失败: {error}");
+                }
+
                 if !silent_startup {
                     let _ = window.show();
                 }

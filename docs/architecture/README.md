@@ -31,6 +31,16 @@ flowchart LR
 
 该图是常规路径，不是全局严格分层。安装、备份、OAuth 和游戏启动会直接组合 repository、SeaORM entity、文件系统、HTTP 或 Tauri event。
 
+## 网页版边界
+
+同一份 React 代码还有一个网页版：Linux `reina-server`（axum + 同一套 `reina-core`）在 Docker 中提供 `/game/` 静态页面和 `/game/api`，由 TeleDrive nginx 反代，与 TeleDrive 共享 JWT 登录。数据仍以 SQLite 为事实源，位于容器卷 `/data`。
+
+- **server**：游戏库 RPC、封面、元数据/图片代理、云端扫描、游玩记录入库与全局 `data_version`。
+- **本机 bridge**（Windows，`127.0.0.1:8081`）：游戏下载、可执行文件列表、启动与进程计时；浏览器直接调用 `/rpc/game/*`，不经过 server。
+- 游玩记录经 bridge 本机队列补送给 server，属于最终一致；`data_version` 让其他设备发现变化。
+
+部署、回滚、备份、时区和排错见 [`../deployment/web-docker.md`](../deployment/web-docker.md)。
+
 ## 目录地图
 
 ```text
@@ -79,3 +89,4 @@ main.rs → lib::run
 - Rust 模块和存储：[`backend.md`](backend.md)
 - 游戏库缓存与索引：[`game-library.md`](game-library.md)
 - 外部元数据适配：[`metadata.md`](metadata.md)
+- 网页版部署与运维：[`../deployment/web-docker.md`](../deployment/web-docker.md)

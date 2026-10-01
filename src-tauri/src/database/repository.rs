@@ -1,4 +1,3 @@
-pub mod collections_repository;
-pub mod game_stats_repository;
-pub mod games_repository;
-pub mod settings_repository;
+//! Repository 实际定义位于 `reina_core::database::repository`，此处重新导出以保持既有路径。
+
+pub use reina_core::database::repository::*;

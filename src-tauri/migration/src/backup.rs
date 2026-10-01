@@ -2,8 +2,31 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use reina_path::get_db_path;
-use sea_orm_migration::sea_orm::DbErr;
+use sea_orm_migration::sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement};
+
+/// 获取连接当前 `main` 数据库的文件路径；内存数据库返回 None。
+///
+/// migration 必须备份“正在迁移的数据库”。旧写法根据桌面数据目录推导路径，
+/// 服务器（/data）或测试（临时目录）执行时会备份到错误的文件。
+pub async fn database_file_path<C>(conn: &C) -> Result<Option<PathBuf>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let row = conn
+        .query_one_raw(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "SELECT file FROM pragma_database_list WHERE name = 'main'".to_string(),
+        ))
+        .await?;
+    let file = match row {
+        Some(row) => row.try_get::<String>("", "file")?,
+        None => return Ok(None),
+    };
+    if file.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(PathBuf::from(file)))
+}
 
 /// 使用 SQLite 一致性快照备份数据库。
 ///
@@ -11,9 +34,13 @@ use sea_orm_migration::sea_orm::DbErr;
 /// - 若存在且非空，则备份到该路径下
 /// - 否则备份到数据库所在目录的 `backups/` 子目录
 /// - 自定义目录备份失败时记录警告并回退默认目录；默认目录备份失败则终止迁移
-pub async fn backup_sqlite(version: &str) -> Result<PathBuf, DbErr> {
-    let db_path =
-        get_db_path().map_err(|e| DbErr::Custom(format!("Failed to get database path: {}", e)))?;
+pub async fn backup_sqlite<C>(conn: &C, version: &str) -> Result<PathBuf, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let db_path = database_file_path(conn)
+        .await?
+        .ok_or_else(|| DbErr::Custom("内存数据库无需备份".to_string()))?;
     let db_url = path_to_sqlite_url(&db_path)?;
 
     let pool = sqlx::SqlitePool::connect(&db_url)

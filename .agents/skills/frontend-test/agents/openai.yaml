@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目内前端验证"
+  short_description: "在项目内验证前端，复用固定测试目录并在结束后清理测试资源"
+  default_prompt: "使用 $frontend-test 在项目内复用隔离环境，复现并验证当前前端改动。"

@@ -2,8 +2,7 @@ use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
 use sea_orm_migration::sea_orm::TransactionTrait;
 
-use crate::backup::{backup_sqlite, path_to_sqlite_url};
-use reina_path::get_db_path;
+use crate::backup::{backup_sqlite, database_file_path, path_to_sqlite_url};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -24,12 +23,12 @@ impl MigrationTrait for Migration {
             txn.commit().await?;
         } else {
             // 迁移前备份数据库
-            match backup_sqlite("v0.6.9").await {
+            match backup_sqlite(conn, "v0.6.9").await {
                 Ok(path) => log::info!("[MIGRATION] Database backed up to: {}", path.display()),
                 Err(e) => log::warn!("[MIGRATION] Backup failed (continuing anyway): {}", e),
             }
             log::info!("[MIGRATION] Existing user detected, running legacy migration catch-up");
-            run_legacy_migrations_with_sqlx().await?;
+            run_legacy_migrations_with_sqlx(conn).await?;
         }
 
         log::info!("[MIGRATION] v1 baseline schema created successfully");
@@ -265,12 +264,16 @@ where
 }
 
 /// 为现有用户运行旧的 tauri-plugin-sql 迁移，使用 sqlx 执行
-async fn run_legacy_migrations_with_sqlx() -> Result<(), DbErr> {
+async fn run_legacy_migrations_with_sqlx<C>(conn: &C) -> Result<(), DbErr>
+where
+    C: ConnectionTrait,
+{
     log::info!("[MIGRATION] Running legacy migrations with sqlx...");
 
-    // 获取数据库连接 URL（从系统目录推导）
-    let db_path =
-        get_db_path().map_err(|e| DbErr::Custom(format!("Failed to get database path: {}", e)))?;
+    // 旧版数据库只可能是文件型；路径直接取自正在迁移的连接，不再从桌面目录推导。
+    let db_path = database_file_path(conn)
+        .await?
+        .ok_or_else(|| DbErr::Custom("旧版数据迁移需要文件型数据库".to_string()))?;
     let database_url = path_to_sqlite_url(&db_path)?;
 
     // 创建 sqlx 连接池

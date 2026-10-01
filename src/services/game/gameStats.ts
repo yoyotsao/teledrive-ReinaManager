@@ -1,9 +1,11 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import i18n from "i18next";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { createBackupAndSync } from "@/hooks/queries/useSavedata";
 import { queryClient } from "@/providers/queryClient";
 import { snackbar } from "@/providers/snackBar";
 import { gameService, statsService } from "@/services/invoke";
+import { isWebRuntime } from "@/services/platform";
 import type {
 	GameSession,
 	GameStatistics,
@@ -142,6 +144,11 @@ export async function initGameTimeTracking(
 	onTimeUpdate?: TimeUpdateCallback,
 	onSessionEnd?: SessionEndCallback,
 ): Promise<() => void> {
+	if (isWebRuntime()) {
+		return () => {};
+	}
+	const { listen } = await import("@tauri-apps/api/event");
+
 	// 游戏会话开始
 	const unlistenStart = listen<{
 		gameId: number;
@@ -212,7 +219,7 @@ export async function initGameTimeTracking(
 			}
 
 			// 后端完成会话结算后，由事件层统一刷新统计查询缓存。
-			await queryClient.invalidateQueries({ queryKey: ["stats"] });
+			await queryClient.invalidateQueries({ queryKey: serverKey("stats") });
 
 			void (async () => {
 				try {

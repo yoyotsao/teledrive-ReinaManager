@@ -119,6 +119,17 @@ class CollectionService extends BaseService {
 		});
 	}
 
+	/** 仅调整分类内的游戏顺序，不增删成员。 */
+	async reorderCategoryGames(
+		orderedGameIds: number[],
+		collectionId: number,
+	): Promise<void> {
+		return this.invoke<void>("reorder_category_games", {
+			orderedGameIds,
+			collectionId,
+		});
+	}
+
 	// ==================== 前端友好的组合 API ====================
 
 	/**

@@ -38,6 +38,17 @@
 			"bgmNotLoggedInHint": "Bangumiアカウントにログインしていません。一部の非表示アイテム（R18など）が検索できない場合があります。",
 			"bulkTab": "一括インポート",
 			"cancel": "キャンセル",
+			"cloudScan": {
+				"cancel": "停止",
+				"confirm": "適用",
+				"description": "TeleDrive の game フォルダをスキャンし、未登録のゲームを追加します。タイトルが完全一致した結果のみ自動で適用され、それ以外は確認が必要です。",
+				"dismiss": "スキップ",
+				"noCandidate": "信頼できる候補が見つかりません。ゲーム詳細ページから手動で検索してください。",
+				"pendingTitle_other": "要確認（{{count}}）",
+				"retryLater_other": "{{count}} 件のゲームを一時的に取得できませんでした。次回のスキャンで自動的に再試行します。",
+				"start": "スキャン開始"
+			},
+			"cloudScanTab": "クラウドスキャン",
 			"cloudTab": "クラウドコレクション",
 			"confirm": "確認",
 			"developer": "開発者",
@@ -71,6 +82,9 @@
 			"confirmUpdateTitle": "ゲーム情報の更新を確認",
 			"deleteBackupTitle": "バックアップを削除",
 			"deleteGameMessage": "このゲームを削除してもよろしいですか？",
+			"deleteGameScope": "このサイト上のゲームの記録・カバー・プレイ統計を削除します。",
+			"deleteCloudFiles": "TeleDrive のクラウドファイルもゴミ箱へ移動する",
+			"deleteCloudHint": "既定では削除しません。チェックすると、クラウドスキャンで追加したゲームの TeleDrive game フォルダ内のアーカイブ（および同名フォルダ）をゴミ箱へ移動します。TeleDrive から復元できます。手動追加のゲームにはクラウドファイルがないため影響しません。",
 			"deleteGameTitle": "ゲームを削除",
 			"gameName": "ゲーム名",
 			"processing": "処理中...",
@@ -251,6 +265,23 @@
 			"title": "ゲームをインストール"
 		},
 		"LaunchModal": {
+			"bridgeActionsUnaffected": "ゲーム情報の編集、スキャン、カバー機能は引き続き利用できます",
+			"bridgeCancelDownload": "ダウンロードをキャンセル",
+			"bridgeChecking": "ローカル bridge に接続中…",
+			"bridgeChooseExe": "実行ファイルを選択",
+			"bridgeCloudGame": "TeleDrive でこの端末にダウンロードできます",
+			"bridgeDownload": "この端末にダウンロード",
+			"bridgeDownloading": "ダウンロード中",
+			"bridgeExeChanged": "ゲームファイルが変更されました。実行ファイルを再選択してください",
+			"bridgeLocaleEmulator": "Locale Emulator を使用",
+			"bridgeNoExes": "実行ファイルが見つかりません",
+			"bridgePathMissing": "TeleDrive のゲームパスが設定されていません",
+			"bridgePermissionDenied": "ローカル bridge にアクセスを拒否されました",
+			"bridgeResumeDownload": "ダウンロードを再開",
+			"bridgeRunning": "実行中",
+			"bridgeSelectExe": "実行ファイルを選択",
+			"bridgeStatusUnavailable": "ローカル bridge の状態を読み取れません",
+			"bridgeUnavailable": "ローカル bridge を利用できません。サービスを起動し、ブラウザーの権限を確認してください。",
 			"gamePathNotFound": "ゲームパスが見つかりません",
 			"launchFailed": "ゲーム起動に失敗しました:",
 			"launchGame": "ゲームを起動",
@@ -430,6 +461,15 @@
 			"exit": "終了",
 			"open": "メインウィンドウを開く"
 		},
+		"WebAuthGate": {
+			"description": "ReinaManager のウェブ版は TeleDrive のログインを使用します。TeleDrive にログインしてから、このページに戻ってください。",
+			"openTeleDrive": "TeleDrive にログイン",
+			"retry": "ログインしました。再確認する",
+			"title": "先に TeleDrive にログインしてください"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "ウェブ版では OAuth ログインを利用できません。デスクトップ版でログインしてから同期してください。"
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "再度確認しない",
@@ -578,6 +618,12 @@
 				"renameFailed": "名前の変更に失敗しました：{{error}}"
 			},
 			"gamesCount": "ゲーム",
+			"gameSort": {
+				"manual": "手動順",
+				"manualHint": "保存した手動順で表示します。検索と絞り込みを解除すると、ドラッグで並べ替えられます。",
+				"saveFailed": "並び順を保存できませんでした。もう一度お試しください。",
+				"search": "このカテゴリのゲームを検索"
+			},
 			"noCategoriesHint": "現在のグループにカテゴリがありません",
 			"noGamesInCategory": "現在のカテゴリにゲームがありません",
 			"noMatchingGames": "条件に一致するゲームが見つかりません",
@@ -681,6 +727,7 @@
 			"expandTags": "タグを展開する",
 			"expected_hours": "予想時間",
 			"gameDatafrom": "データソース",
+			"gameSize": "ファイルサイズ",
 			"gameDeveloper": "開発者",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "別名を入力...",
@@ -696,6 +743,7 @@
 				"clipboardPreviewSelected": "クリップボードから画像を取り込みました。保存後に有効になります",
 				"closeSourceCoverDialog": "閉じる",
 				"confirm": "確定",
+				"coverTooLarge": "カバー画像は 10 MB 以下にしてください",
 				"customGameName": "カスタムゲーム名",
 				"developer": "開発者",
 				"developerHelperText": "ゲームの開発者または製作グループ名",
@@ -949,6 +997,9 @@
 				"userId": "ユーザー ID: {{id}}"
 			},
 			"importCloudCollection": "クラウドコレクションをインポート",
+			"interfaceZoom": "画面の拡大率",
+			"interfaceZoomDescription": "Ctrl + プラス/マイナス、または Ctrl + マウスホイールでも調整できます。",
+			"interfaceZoomError": "画面の拡大率を変更できませんでした",
 			"language": "言語",
 			"linuxLaunchCommand": {
 				"commandLabel": "起動コマンド",

@@ -147,7 +147,7 @@ impl MigrationTrait for Migration {
         // 备份数据库
         // ========================================
         info!("[MIGRATION] Starting database backup before hybrid single table migration...");
-        match backup_sqlite("v0.13.0").await {
+        match backup_sqlite(manager.get_connection(), "v0.13.0").await {
             Ok(backup_path) => info!("[MIGRATION] Backup successful: {:?}", backup_path),
             Err(e) => warn!("[MIGRATION] Backup failed (continuing anyway): {}", e),
         }

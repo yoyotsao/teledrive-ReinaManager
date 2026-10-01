@@ -38,6 +38,19 @@
 			"bgmNotLoggedInHint": "Not logged into Bangumi account, some hidden items (such as R18) may not be searchable.",
 			"bulkTab": "Bulk Import",
 			"cancel": "Cancel",
+			"cloudScan": {
+				"cancel": "Stop",
+				"confirm": "Apply",
+				"description": "Scan the TeleDrive game folder and add games that are not in the library yet. Only exact title matches are applied automatically; everything else needs your confirmation.",
+				"dismiss": "Skip",
+				"noCandidate": "No reliable match found. Search manually from the game detail page.",
+				"pendingTitle_one": "Needs review ({{count}})",
+				"pendingTitle_other": "Needs review ({{count}})",
+				"retryLater_one": "{{count}} game could not be looked up right now and will be retried on the next scan.",
+				"retryLater_other": "{{count}} games could not be looked up right now and will be retried on the next scan.",
+				"start": "Start scan"
+			},
+			"cloudScanTab": "Cloud scan",
 			"cloudTab": "Cloud Collection",
 			"confirm": "Confirm",
 			"developer": "Developer",
@@ -71,6 +84,9 @@
 			"confirmUpdateTitle": "Confirm Update Game",
 			"deleteBackupTitle": "Delete Backup",
 			"deleteGameMessage": "Are you sure you want to delete this game?",
+			"deleteGameScope": "This removes the game's records, cover and play statistics from this site.",
+			"deleteCloudFiles": "Also move the TeleDrive cloud file to the trash",
+			"deleteCloudHint": "Off by default. When checked, the archive (and same-named folder) of a cloud-scanned game in the TeleDrive game folder is moved to the trash and can be restored from TeleDrive. Manually added games have no cloud file and are unaffected.",
 			"deleteGameTitle": "Delete Game",
 			"gameName": "Game Name",
 			"processing": "Processing...",
@@ -261,6 +277,23 @@
 			"title": "Install Game"
 		},
 		"LaunchModal": {
+			"bridgeActionsUnaffected": "Game editing, scanning, and cover features remain available",
+			"bridgeCancelDownload": "Cancel download",
+			"bridgeChecking": "Connecting to the local bridge…",
+			"bridgeChooseExe": "Choose executable",
+			"bridgeCloudGame": "Download this game to this device with TeleDrive",
+			"bridgeDownload": "Download to this device",
+			"bridgeDownloading": "Downloading",
+			"bridgeExeChanged": "Game files changed. Choose the executable again.",
+			"bridgeLocaleEmulator": "Use Locale Emulator",
+			"bridgeNoExes": "No executable files were found",
+			"bridgePathMissing": "TeleDrive game path is not configured",
+			"bridgePermissionDenied": "The local bridge denied access",
+			"bridgeResumeDownload": "Resume download",
+			"bridgeRunning": "Running",
+			"bridgeSelectExe": "Choose executable",
+			"bridgeStatusUnavailable": "Could not read local bridge status",
+			"bridgeUnavailable": "Local bridge is unavailable. Start the service and check browser permissions.",
 			"gamePathNotFound": "Game path not found",
 			"launchFailed": "Failed to launch game:",
 			"launchGame": "Launch Game",
@@ -446,6 +479,15 @@
 			"exit": "Exit",
 			"open": "Open Main Window"
 		},
+		"WebAuthGate": {
+			"description": "The ReinaManager web version uses your TeleDrive login. Sign in to TeleDrive, then come back to this page.",
+			"openTeleDrive": "Sign in to TeleDrive",
+			"retry": "I've signed in, check again",
+			"title": "Please sign in to TeleDrive first"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "OAuth sign-in is not available on the web. Sign in with the desktop app, then sync."
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "Don't remind again",
@@ -599,6 +641,12 @@
 				"renameFailed": "Failed to rename: {{error}}"
 			},
 			"gamesCount": "games",
+			"gameSort": {
+				"manual": "Manual order",
+				"manualHint": "Uses your saved manual order. Clear search and filters to reorder by dragging.",
+				"saveFailed": "Could not save the order. Please try again.",
+				"search": "Search games in this category"
+			},
 			"noCategoriesHint": "No categories in current group",
 			"noGamesInCategory": "No games in current category",
 			"noMatchingGames": "No matching games found",
@@ -702,6 +750,7 @@
 			"expandTags": "Expand Tags",
 			"expected_hours": "Expected Hours",
 			"gameDatafrom": "Data Source",
+			"gameSize": "File Size",
 			"gameDeveloper": "Developer",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "Add alias...",
@@ -717,6 +766,7 @@
 				"clipboardPreviewSelected": "Image imported from clipboard, will take effect after saving",
 				"closeSourceCoverDialog": "Close",
 				"confirm": "Confirm",
+				"coverTooLarge": "Cover must be 10 MB or smaller",
 				"customGameName": "Custom Game Name",
 				"developer": "Developer",
 				"developerHelperText": "The game's developer or production group name",
@@ -971,6 +1021,9 @@
 				"userId": "User ID: {{id}}"
 			},
 			"importCloudCollection": "Import Cloud Collection",
+			"interfaceZoom": "Interface zoom",
+			"interfaceZoomDescription": "You can also use Ctrl + Plus/Minus or Ctrl + the mouse wheel.",
+			"interfaceZoomError": "Failed to change interface zoom",
 			"language": "Language",
 			"linuxLaunchCommand": {
 				"commandLabel": "Launch Command",

@@ -1,6 +1,7 @@
 import { Breadcrumbs, Link, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import { isTauri } from "@tauri-apps/api/core";
 import { PageContainer } from "@toolpad/core/PageContainer";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -9,6 +10,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { PathSettingsModal } from "@/components/PathSettingsModal";
 import { ToolIntegrationModal } from "@/components/ToolIntegrationModal";
 import { useScrollRestore } from "@/hooks/common/useScrollRestore";
+import { platformCapabilities } from "@/services/platform";
 import { isWindowsPlatform } from "@/utils/tauriProtocol";
 import { AboutSection } from "./AboutSettings";
 import { AccountSettings } from "./AccountSettings";
@@ -19,6 +21,7 @@ import {
 } from "./DataSourceSettings";
 import {
 	CardClickModeSettings,
+	InterfaceZoomSettings,
 	LanguageSelect,
 	NsfwSettings,
 	StartupPageSettings,
@@ -40,6 +43,8 @@ type SettingsSection = {
 	description: string;
 	content: React.ReactNode;
 	frame?: "card" | "plain";
+	/** 只有桌面版才有意义的分区（系统、路径与备份） */
+	desktopOnly?: boolean;
 };
 
 type SettingsPageHeaderProps = {
@@ -91,8 +96,8 @@ export const Settings: React.FC = () => {
 		[t, pageTitle],
 	);
 
-	const sections = useMemo<SettingsSection[]>(
-		() => [
+	const sections = useMemo<SettingsSection[]>(() => {
+		const allSections: SettingsSection[] = [
 			{
 				id: "account",
 				label: t("pages.Settings.sections.account", "账号与同步"),
@@ -130,6 +135,12 @@ export const Settings: React.FC = () => {
 				content: (
 					<Box className="space-y-5">
 						<LanguageSelect />
+						{isTauri() && isWindowsPlatform && (
+							<>
+								<SettingsDivider />
+								<InterfaceZoomSettings />
+							</>
+						)}
 						<SettingsDivider />
 						<StartupPageSettings />
 						<SettingsDivider />
@@ -146,6 +157,7 @@ export const Settings: React.FC = () => {
 					"pages.Settings.sections.systemDescription",
 					"管理启动、日志、关闭行为和计时模式。",
 				),
+				desktopOnly: true,
 				content: (
 					<Box className="space-y-5">
 						<AutoStartSettings />
@@ -204,6 +216,7 @@ export const Settings: React.FC = () => {
 					"pages.Settings.sections.storageDescription",
 					"配置本地路径，执行数据备份和恢复。",
 				),
+				desktopOnly: true,
 				content: (
 					<>
 						<SettingsGroup
@@ -235,9 +248,12 @@ export const Settings: React.FC = () => {
 				),
 				content: <AboutSection />,
 			},
-		],
-		[t],
-	);
+		];
+
+		return allSections.filter(
+			(section) => !section.desktopOnly || platformCapabilities.desktopShell,
+		);
+	}, [t]);
 
 	useEffect(() => {
 		const scrollContainer = document.querySelector<HTMLElement>("main");

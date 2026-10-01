@@ -23,11 +23,10 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { open as openurl } from "@tauri-apps/plugin-shell";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
-import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
+import { useProxiedImageUrl } from "@/hooks/queries/useProxiedImageUrl";
 import {
 	useAllSettings,
 	useUpdateSettings,
@@ -37,6 +36,11 @@ import { getBgmAvatarUrl } from "@/metadata/api/bgm";
 import type { HikarinagiUserProfile } from "@/metadata/api/hikarinagi";
 import { snackbar } from "@/providers/snackBar";
 import { hasHikarinagiScope } from "@/services/oauth/hikarinagiAuthSession";
+import {
+	openExternal as openurl,
+	platformCapabilities,
+	publicAssetUrl,
+} from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import type { BgmAuth, HikarinagiAuth } from "@/types";
 import { useBgmAuthController } from "./useBgmAuthController";
@@ -48,7 +52,7 @@ import { useHikarinagiAuthController } from "./useHikarinagiAuthController";
 const BgmWordmarkSVG = () => (
 	<Box
 		component="img"
-		src="/images/bangumi-wordmark.png"
+		src={publicAssetUrl("images/bangumi-wordmark.png")}
 		alt="Bangumi"
 		sx={{ height: 24, width: "auto", objectFit: "contain" }}
 	/>
@@ -58,7 +62,7 @@ const BgmWordmarkSVG = () => (
 const HikarinagiWordmarkSVG = () => (
 	<Box
 		component="img"
-		src="/images/hikarinagi-wordmark.svg"
+		src={publicAssetUrl("images/hikarinagi-wordmark.svg")}
 		alt="Hikarinagi"
 		sx={{
 			height: 22,
@@ -74,7 +78,7 @@ const HikarinagiWordmarkSVG = () => (
 const VndbWordmarkSVG = () => (
 	<Box
 		component="img"
-		src="/images/vndb-wordmark.svg"
+		src={publicAssetUrl("images/vndb-wordmark.svg")}
 		alt="VNDB"
 		sx={{
 			height: 18,
@@ -144,7 +148,10 @@ const BgmAccountSummary = ({
 	onLogout,
 }: BgmAccountSummaryProps) => {
 	const { t } = useTranslation();
-	const resolveImageUrl = useProxyImageUrlResolver();
+	const username = bgmAuth?.username ?? "";
+	const avatarSrc = useProxiedImageUrl(
+		username ? getBgmAvatarUrl(username) : undefined,
+	);
 	if (!bgmAuth?.access_token) return null;
 
 	const isOAuth = Boolean(bgmAuth.refresh_token);
@@ -153,7 +160,6 @@ const BgmAccountSummary = ({
 		? new Date(expiresAt * 1000).toLocaleString()
 		: null;
 	const isExpired = expiresAt ? Date.now() / 1000 >= expiresAt : false;
-	const username = bgmAuth.username ?? "";
 	const displayName = bgmAuth.nickname || username;
 	const shouldShowCompleteButton =
 		!isOAuth && (bgmAuth.expires_at == null || !bgmAuth.username);
@@ -172,7 +178,7 @@ const BgmAccountSummary = ({
 			{username ? (
 				<Stack direction="row" spacing={2} alignItems="flex-start">
 					<Avatar
-						src={resolveImageUrl(getBgmAvatarUrl(username))}
+						src={avatarSrc}
 						alt={displayName}
 						sx={{ width: 44, height: 44 }}
 					/>
@@ -300,24 +306,35 @@ export const BgmProviderSection = () => {
 							)}
 						</Typography>
 
-						<Stack direction="row" spacing={2} alignItems="center">
-							<Button
-								variant="contained"
-								color={isOAuthLoading ? "warning" : "primary"}
-								startIcon={isOAuthLoading ? <CancelIcon /> : <LoginIcon />}
-								onClick={isOAuthLoading ? handleCancelOAuth : handleOAuthLogin}
-							>
-								{isOAuthLoading
-									? t(
-											"pages.Settings.bgmTokenSettings.oauthCancel",
-											"取消 BGM OAuth 登录",
-										)
-									: t(
-											"pages.Settings.bgmTokenSettings.oauthLogin",
-											"OAuth 快捷登录",
-										)}
-							</Button>
-						</Stack>
+						{platformCapabilities.desktopShell ? (
+							<Stack direction="row" spacing={2} alignItems="center">
+								<Button
+									variant="contained"
+									color={isOAuthLoading ? "warning" : "primary"}
+									startIcon={isOAuthLoading ? <CancelIcon /> : <LoginIcon />}
+									onClick={
+										isOAuthLoading ? handleCancelOAuth : handleOAuthLogin
+									}
+								>
+									{isOAuthLoading
+										? t(
+												"pages.Settings.bgmTokenSettings.oauthCancel",
+												"取消 BGM OAuth 登录",
+											)
+										: t(
+												"pages.Settings.bgmTokenSettings.oauthLogin",
+												"OAuth 快捷登录",
+											)}
+								</Button>
+							</Stack>
+						) : (
+							<Typography variant="body2" color="text.secondary">
+								{t(
+									"components.WebCapability.oauthUnavailable",
+									"网页版不支持 OAuth 登录，请使用桌面版登录后再同步。",
+								)}
+							</Typography>
+						)}
 
 						<Accordion
 							elevation={0}
@@ -465,7 +482,7 @@ const HikarinagiAccountSummary = ({
 	onLogout,
 }: HikarinagiAccountSummaryProps) => {
 	const { t } = useTranslation();
-	const resolveImageUrl = useProxyImageUrlResolver();
+	const avatarSrc = useProxiedImageUrl(profile?.avatar?.src);
 	if (!auth?.access_token) return null;
 
 	const expiresAt = auth.expires_at ?? null;
@@ -477,11 +494,7 @@ const HikarinagiAccountSummary = ({
 
 	return (
 		<Stack direction="row" spacing={2} alignItems="flex-start" className="mb-2">
-			<Avatar
-				src={resolveImageUrl(profile?.avatar?.src)}
-				alt={displayName}
-				sx={{ width: 44, height: 44 }}
-			>
+			<Avatar src={avatarSrc} alt={displayName} sx={{ width: 44, height: 44 }}>
 				{displayName.slice(0, 1).toUpperCase()}
 			</Avatar>
 			<Box className="min-w-0 flex-1">
@@ -592,31 +605,40 @@ export const HikarinagiProviderSection = () => {
 					/>
 				) : (
 					<Stack spacing={2} alignItems="flex-start">
-						<Button
-							variant="contained"
-							color={isOAuthLoading ? "warning" : "primary"}
-							startIcon={
-								isSaving ? (
-									<CircularProgress size={18} />
-								) : isOAuthLoading ? (
-									<CancelIcon />
-								) : (
-									<LoginIcon />
-								)
-							}
-							onClick={isOAuthLoading ? handleCancelOAuth : handleOAuthLogin}
-							disabled={isSaving}
-						>
-							{isOAuthLoading
-								? t(
-										"pages.Settings.hikarinagiAuth.oauthCancel",
-										"取消 Hikarinagi OAuth 登录",
+						{platformCapabilities.desktopShell ? (
+							<Button
+								variant="contained"
+								color={isOAuthLoading ? "warning" : "primary"}
+								startIcon={
+									isSaving ? (
+										<CircularProgress size={18} />
+									) : isOAuthLoading ? (
+										<CancelIcon />
+									) : (
+										<LoginIcon />
 									)
-								: t(
-										"pages.Settings.hikarinagiAuth.oauthLogin",
-										"OAuth 快捷登录",
-									)}
-						</Button>
+								}
+								onClick={isOAuthLoading ? handleCancelOAuth : handleOAuthLogin}
+								disabled={isSaving}
+							>
+								{isOAuthLoading
+									? t(
+											"pages.Settings.hikarinagiAuth.oauthCancel",
+											"取消 Hikarinagi OAuth 登录",
+										)
+									: t(
+											"pages.Settings.hikarinagiAuth.oauthLogin",
+											"OAuth 快捷登录",
+										)}
+							</Button>
+						) : (
+							<Typography variant="body2" color="text.secondary">
+								{t(
+									"components.WebCapability.oauthUnavailable",
+									"网页版不支持 OAuth 登录，请使用桌面版登录后再同步。",
+								)}
+							</Typography>
+						)}
 					</Stack>
 				)}
 			</Box>

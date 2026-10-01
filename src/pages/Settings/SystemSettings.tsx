@@ -28,7 +28,11 @@ import { fileService } from "@/services/invoke";
 import { toggleAutostart } from "@/services/plugins/autoStartService";
 import { useStore } from "@/store/appStore";
 import { getUserErrorMessage } from "@/utils/errors";
-import { SettingsGroup, SettingsItem } from "./SettingsLayout";
+import {
+	SETTINGS_SELECT_CLASS_NAME,
+	SettingsGroup,
+	SettingsItem,
+} from "./SettingsLayout";
 
 const SETTINGS_STORE_PATH = "settings.json";
 const SILENT_STARTUP_STORE_KEY = "silent_startup";
@@ -178,7 +182,7 @@ export const LogLevelSettings = () => {
 				<Select
 					value={logLevel}
 					onChange={handleChange}
-					className="min-w-40"
+					className={SETTINGS_SELECT_CLASS_NAME}
 					size="small"
 				>
 					<MenuItem value="error">Error</MenuItem>

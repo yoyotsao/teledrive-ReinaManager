@@ -29,6 +29,7 @@ import {
 } from "@/metadata/constants";
 import { type ProxyConfig, settingsService } from "@/services/invoke";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke/types";
+import { isWebRuntime } from "@/services/platform";
 import type { CloudCollectionSource, SourceType } from "@/types";
 import type {
 	CollectionEntitySortField,
@@ -56,6 +57,11 @@ export interface GameFilterSortConfig {
 	sortOption: SortOption;
 	sortOrder: SortOrder;
 	showCardSortFieldOverlay: boolean;
+}
+
+export interface CollectionGameFilterSortConfig
+	extends Omit<GameFilterSortConfig, "sortOption"> {
+	sortOption: SortOption | "manual";
 }
 
 const DEFAULT_API_SOURCE: SourceType = "hikarinagi";
@@ -153,6 +159,8 @@ export interface AppState {
 	// 启动默认页面
 	startupPage: StartupPage;
 	setStartupPage: (page: StartupPage) => void;
+	zoomPercent: number;
+	setZoomPercent: (percent: number) => void;
 
 	// TAG翻译功能
 	tagTranslation: boolean;
@@ -184,6 +192,12 @@ export interface AppState {
 	triggerUpdateModal: (update: Update) => void;
 
 	// 分组分类选择状态
+	collectionGameFilterSort: CollectionGameFilterSortConfig;
+	applyCollectionGameFilterSort: (
+		config: CollectionGameFilterSortConfig,
+	) => void;
+	collectionGameSearch: string;
+	setCollectionGameSearch: (value: string) => void;
 	currentGroupId: string | null; // 当前选中的分组ID
 	selectedCategory: SelectedCategory; // 当前选中的分类
 	setCurrentGroup: (groupId: string | null) => void; // 设置当前分组
@@ -371,6 +385,8 @@ export const useStore = create<AppState>()(
 			// 启动默认页面
 			startupPage: "home",
 			setStartupPage: (page: StartupPage) => set({ startupPage: page }),
+			zoomPercent: 100,
+			setZoomPercent: (percent: number) => set({ zoomPercent: percent }),
 
 			// TAG翻译功能（默认关闭）
 			tagTranslation: false,
@@ -476,6 +492,24 @@ export const useStore = create<AppState>()(
 			},
 
 			// 分组分类选择状态初始值
+			collectionGameFilterSort: {
+				gameFilterType: "all",
+				playStatusFilter: "all",
+				tagFilters: [],
+				sortOption: "manual",
+				sortOrder: "asc",
+				showCardSortFieldOverlay: false,
+			},
+			applyCollectionGameFilterSort: (config) => {
+				set({
+					collectionGameFilterSort: {
+						...config,
+						tagFilters: normalizeTagFilters(config.tagFilters),
+					},
+				});
+			},
+			collectionGameSearch: "",
+			setCollectionGameSearch: (value) => set({ collectionGameSearch: value }),
 			currentGroupId: null,
 			selectedCategory: null,
 			collectionEntitySortField: "created_at",
@@ -540,6 +574,9 @@ export const useStore = create<AppState>()(
 
 			// 初始化方法
 			initialize: async () => {
+				// 网页版：游玩计时由各台电脑的 bridge 负责，元数据代理由伺服器负责
+				if (isWebRuntime()) return;
+
 				// 初始化游戏时间跟踪（数据获取由 React Query 自动触发）
 				await initializeGamePlayTracking().catch((error) => {
 					console.error("初始化游戏时间跟踪失败:", error);
@@ -579,6 +616,7 @@ export const useStore = create<AppState>()(
 			// 可选：定义哪些字段需要持久化存储
 			partialize: (state) => ({
 				// 排序偏好
+				collectionGameFilterSort: state.collectionGameFilterSort,
 				sortOption: state.sortOption,
 				sortOrder: state.sortOrder,
 				showCardSortFieldOverlay: state.showCardSortFieldOverlay,
@@ -609,6 +647,7 @@ export const useStore = create<AppState>()(
 				cardClickMode: state.cardClickMode,
 				// 启动默认页面
 				startupPage: state.startupPage,
+				zoomPercent: state.zoomPercent,
 				// VNDB标签翻译
 				tagTranslation: state.tagTranslation,
 				// 收藏同步开关

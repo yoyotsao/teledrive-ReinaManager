@@ -8,6 +8,7 @@ import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, type RouteObject } from "react-router-dom";
 import App from "@/App";
 import Layout from "@/components/AppLayout";
+import { getRouterBasename } from "@/services/platform";
 
 // 使用 React.lazy 懒加载页面组件
 const Home = lazy(() =>
@@ -157,4 +158,6 @@ const routeConfig: RouteObject[] = [
 /**
  * routers 路由对象
  */
-export const routers = createBrowserRouter(routeConfig);
+export const routers = createBrowserRouter(routeConfig, {
+	basename: getRouterBasename(),
+});

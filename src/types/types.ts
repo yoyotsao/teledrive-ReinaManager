@@ -59,6 +59,9 @@ export type GameScanMode = "executable" | "first_level_directory" | "steam";
 export type GameDirectoryScanMode = Exclude<GameScanMode, "steam">;
 export type GameLaunchType = "local" | "steam";
 
+/** 网页版扫描状态：待补全、需要使用者确认、已完成。 */
+export type ScanStatus = "pending" | "needs_confirmation" | "complete";
+
 export interface OAuthAuth {
 	access_token: string;
 	refresh_token?: Nullable<string>;
@@ -157,6 +160,7 @@ export interface KunData {
  * DLsite 数据结构
  */
 export interface DlsiteData {
+	work_type?: string;
 	image?: string;
 	name?: string;
 	summary?: string;
@@ -177,6 +181,34 @@ export interface ErogameScapeData {
 	score?: number | null;
 	nsfw?: boolean;
 	date?: string;
+}
+
+/**
+ * Steam 商店数据结构
+ */
+export interface SteamData {
+	image?: string;
+	name?: string;
+	summary?: string;
+	tags?: string[];
+	developer?: string;
+	nsfw?: boolean;
+	date?: string;
+}
+
+/**
+ * HGameFree（hgamefree.info 下载站文章）数据结构
+ * aliases 存放文章下载链接里的压缩包文件名（不含扩展名），用于按文件名匹配。
+ */
+export interface HgamefreeData {
+	image?: string;
+	name?: string;
+	aliases?: string[];
+	/** 文章里的原始下载链接（k2s 系列与 MEGA），保持文章中的顺序 */
+	file_url?: string[];
+	/** 文章链接到的外部作品 ID：`steam:<app id>`、`getchu:<id>`、`dlsite:RJxxxxxx` */
+	external_ids?: string[];
+	nsfw?: boolean;
 }
 
 /**
@@ -233,6 +265,8 @@ export const SOURCE_TYPES = [
 	"kun",
 	"dlsite",
 	"erogamescape",
+	"hgamefree",
+	"steam",
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 export type CloudCollectionSource = Extract<
@@ -295,6 +329,13 @@ export interface FullGameData extends GameRuntimePayload {
 	date?: string;
 	created_at?: number;
 	updated_at?: number;
+	// --- 网页版（TeleDrive）位置、封面版本与扫描状态 ---
+	teledrive_path?: Nullable<string>;
+	exe_relpath?: Nullable<string>;
+	cover_version?: Nullable<string>;
+	has_custom_cover?: boolean;
+	scan_status?: Nullable<ScanStatus>;
+	scan_candidates?: JsonValue | null;
 }
 
 /**
@@ -328,6 +369,10 @@ export interface InsertGameParams
 	steam_launch_id?: string;
 	savepath?: string;
 	custom_data?: Nullable<CustomData>;
+	teledrive_path?: string;
+	exe_relpath?: string;
+	scan_status?: ScanStatus;
+	scan_candidates?: JsonValue;
 }
 
 /**
@@ -355,6 +400,10 @@ export interface UpdateGameParams {
 	clear?: Nullable<number>;
 	le_launch?: Nullable<number>;
 	magpie?: Nullable<number>;
+	teledrive_path?: Nullable<string>;
+	exe_relpath?: Nullable<string>;
+	scan_status?: Nullable<ScanStatus>;
+	scan_candidates?: JsonValue | null;
 
 	// --- 元数据 Payload（支持三态） ---
 	custom_data?: Nullable<CustomData>;
@@ -403,6 +452,9 @@ export interface GameData
 	localpath?: string;
 	executable?: string;
 	steam_launch_id?: string;
+	// 網頁版 TeleDrive bridge 的 canonical 相對路徑與 exe 相對路徑
+	teledrive_path?: string;
+	exe_relpath?: string;
 	savepath?: string;
 	custom_data?: CustomData;
 	created_at?: number;
@@ -422,6 +474,10 @@ export interface GameData
 	aliases?: string[];
 	average_hours?: number;
 	nsfw?: boolean;
+	// 网页版封面版本；useGameCoverSrc 依此判断要取哪一版 Blob
+	cover_version?: Nullable<string>;
+	// 网页版是否存在自定义封面；与来源封面版本分开，供移除入口判断
+	has_custom_cover?: boolean;
 }
 
 /**
@@ -436,6 +492,9 @@ export interface GameSession {
 	end_time?: number;
 	duration?: number; // 分钟
 	date: string;
+	external_id?: string | null;
+	device?: string | null;
+	duration_seconds?: number | null;
 }
 
 /**

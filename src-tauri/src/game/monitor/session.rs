@@ -1,5 +1,6 @@
 use crate::database::repository::game_stats_repository::GameStatsRepository;
 use log::{error, info, warn};
+use reina_core::database::repository::game_stats_repository::round_seconds_to_minutes;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use serde_json::json;
@@ -18,10 +19,6 @@ pub enum TimeTrackingMode {
 struct SessionDuration {
     effective_seconds: u64,
     duration_minutes: u64,
-}
-
-fn round_seconds_to_minutes(seconds: u64) -> u64 {
-    seconds / 60 + u64::from(seconds % 60 >= 30)
 }
 
 pub(crate) struct MonitoredSession {
@@ -56,9 +53,12 @@ fn calculate_session_duration(
         return Ok(None);
     }
 
+    let duration_minutes =
+        round_seconds_to_minutes(effective_seconds).map_err(|error| error.to_string())?;
+
     Ok(Some(SessionDuration {
         effective_seconds,
-        duration_minutes: round_seconds_to_minutes(effective_seconds),
+        duration_minutes: u64::try_from(duration_minutes).map_err(|error| error.to_string())?,
     }))
 }
 
@@ -67,7 +67,13 @@ pub(crate) async fn finalize_monitored_session<R: Runtime>(
     db: &DatabaseConnection,
     session: MonitoredSession,
 ) {
-    let foreground_minutes = round_seconds_to_minutes(session.accumulated_seconds);
+    let foreground_minutes = match round_seconds_to_minutes(session.accumulated_seconds) {
+        Ok(minutes) => u64::try_from(minutes).unwrap_or(i32::MAX as u64),
+        Err(error) => {
+            warn!("无法计算前台显示分钟数: {error}");
+            i32::MAX as u64
+        }
+    };
     let session_duration = calculate_session_duration(
         session.time_tracking_mode,
         session.start_time,

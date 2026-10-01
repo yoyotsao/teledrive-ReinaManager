@@ -38,6 +38,17 @@
 			"bgmNotLoggedInHint": "未登入 Bangumi 帳號，部分隱藏條目（如 R18）可能無法被搜尋到。",
 			"bulkTab": "批量匯入",
 			"cancel": "取消",
+			"cloudScan": {
+				"cancel": "停止",
+				"confirm": "套用",
+				"description": "掃描 TeleDrive 的 game 資料夾，新增尚未建立的遊戲。只有名稱完全相同的結果會自動套用，其他的需要你確認。",
+				"dismiss": "略過",
+				"noCandidate": "找不到可信的候選，請到遊戲詳情頁手動搜尋。",
+				"pendingTitle_other": "待確認（{{count}}）",
+				"retryLater_other": "有 {{count}} 款暫時查不到資料，下次掃描會自動重試。",
+				"start": "開始掃描"
+			},
+			"cloudScanTab": "雲端掃描",
 			"cloudTab": "雲端收藏",
 			"confirm": "確認",
 			"developer": "開發商",
@@ -71,6 +82,9 @@
 			"confirmUpdateTitle": "確認更新遊戲資訊",
 			"deleteBackupTitle": "刪除備份",
 			"deleteGameMessage": "確定要刪除該遊戲嗎？",
+			"deleteGameScope": "會刪除本站中該遊戲的記錄、封面、遊玩統計等資料。",
+			"deleteCloudFiles": "同時將 TeleDrive 雲端檔案移到垃圾桶",
+			"deleteCloudHint": "預設不刪除。勾選後會把雲端掃描加入的遊戲在 TeleDrive game 資料夾中的壓縮檔（及同名資料夾）移到垃圾桶，可在 TeleDrive 還原；手動新增的遊戲沒有雲端檔案，不受影響。",
 			"deleteGameTitle": "刪除遊戲",
 			"gameName": "遊戲名稱",
 			"processing": "處理中...",
@@ -251,6 +265,23 @@
 			"title": "安裝遊戲"
 		},
 		"LaunchModal": {
+			"bridgeActionsUnaffected": "遊戲資料編輯、掃描和封面功能仍可使用",
+			"bridgeCancelDownload": "取消下載",
+			"bridgeChecking": "正在連接本機 bridge…",
+			"bridgeChooseExe": "選擇可執行檔",
+			"bridgeCloudGame": "可透過 TeleDrive 下載到本機",
+			"bridgeDownload": "下載到本機",
+			"bridgeDownloading": "正在下載",
+			"bridgeExeChanged": "遊戲檔案已變更，請重新選擇可執行檔",
+			"bridgeLocaleEmulator": "使用 Locale Emulator",
+			"bridgeNoExes": "找不到可執行檔",
+			"bridgePathMissing": "未設定 TeleDrive 遊戲路徑",
+			"bridgePermissionDenied": "本機 bridge 拒絕存取",
+			"bridgeResumeDownload": "繼續下載",
+			"bridgeRunning": "執行中",
+			"bridgeSelectExe": "選擇可執行檔",
+			"bridgeStatusUnavailable": "無法讀取本機 bridge 狀態",
+			"bridgeUnavailable": "本機 bridge 無法使用，請啟動服務並檢查瀏覽器權限",
 			"gamePathNotFound": "遊戲路徑未找到",
 			"launchFailed": "遊戲啟動失敗:",
 			"launchGame": "啟動遊戲",
@@ -430,6 +461,15 @@
 			"exit": "退出",
 			"open": "開啟主視窗"
 		},
+		"WebAuthGate": {
+			"description": "ReinaManager 網頁版沿用 TeleDrive 的登入。請在 TeleDrive 登入後回到本頁。",
+			"openTeleDrive": "前往 TeleDrive 登入",
+			"retry": "我已登入，重新檢查",
+			"title": "請先登入 TeleDrive"
+		},
+		"WebCapability": {
+			"oauthUnavailable": "網頁版不支援 OAuth 登入，請使用桌面版登入後再同步。"
+		},
 		"Window": {
 			"closeDialog": {
 				"dontRemind": "不再提醒",
@@ -578,6 +618,12 @@
 				"renameFailed": "重新命名失敗：{{error}}"
 			},
 			"gamesCount": "個遊戲",
+			"gameSort": {
+				"manual": "手動排序",
+				"manualHint": "依已儲存的手動順序顯示；清除搜尋和篩選後可拖曳調整。",
+				"saveFailed": "排序儲存失敗，請重試",
+				"search": "搜尋目前分類的遊戲"
+			},
 			"noCategoriesHint": "當前分組下沒有分類",
 			"noGamesInCategory": "當前分類下暫無遊戲",
 			"noMatchingGames": "沒有找到符合條件的遊戲",
@@ -681,6 +727,7 @@
 			"expandTags": "展開標籤",
 			"expected_hours": "預計時長",
 			"gameDatafrom": "資料來源",
+			"gameSize": "檔案大小",
 			"gameDeveloper": "開發",
 			"GameInfoEdit": {
 				"addAliasPlaceholder": "輸入別名...",
@@ -696,6 +743,7 @@
 				"clipboardPreviewSelected": "已從剪貼簿導入圖片，保存後生效",
 				"closeSourceCoverDialog": "關閉",
 				"confirm": "確定",
+				"coverTooLarge": "封面不能超過 10 MB",
 				"customGameName": "自定遊戲名稱",
 				"developer": "開發商",
 				"developerHelperText": "遊戲的開發商或製作組名稱",
@@ -949,6 +997,9 @@
 				"userId": "使用者 ID: {{id}}"
 			},
 			"importCloudCollection": "匯入雲端收藏",
+			"interfaceZoom": "介面縮放",
+			"interfaceZoomDescription": "也可使用 Ctrl + 加號/減號或 Ctrl + 滾輪調整。",
+			"interfaceZoomError": "介面縮放失敗",
 			"language": "語言",
 			"linuxLaunchCommand": {
 				"commandLabel": "啟動命令",

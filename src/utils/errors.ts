@@ -15,7 +15,12 @@ export type AppErrorCode =
 	| "http_response_error"
 	| "http_response_parse_failed"
 	| "api_rate_limited"
-	| "metadata_request_failed";
+	| "metadata_request_failed"
+	| "not_logged_in"
+	| "network_offline"
+	| "forbidden"
+	| "forbidden_destination"
+	| "server_rpc_failed";
 
 type ApiRateLimitSource =
 	| "bgm"
@@ -23,7 +28,9 @@ type ApiRateLimitSource =
 	| "ymgal"
 	| "dlsite"
 	| "erogamescape"
-	| "hikarinagi";
+	| "hikarinagi"
+	| "hgamefree"
+	| "steam";
 
 interface AppErrorOptions {
 	code: AppErrorCode | string;

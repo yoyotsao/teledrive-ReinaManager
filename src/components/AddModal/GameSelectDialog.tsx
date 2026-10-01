@@ -17,7 +17,7 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { useTranslation } from "react-i18next";
-import { SmartImage } from "@/components/SmartImage";
+import { ProxiedImage } from "@/components/ProxiedImage";
 import type { SourceCandidate, SourceDisplayFields } from "@/metadata";
 import { getRuntimeSourceAdapter } from "@/metadata";
 import type { SourceType } from "@/types";
@@ -131,7 +131,7 @@ const GameSelectDialog: React.FC<GameSelectDialogProps> = ({
 								>
 									<ListItemAvatar>
 										{displayInfo.image ? (
-											<SmartImage
+											<ProxiedImage
 												src={displayInfo.image}
 												alt={displayInfo.name}
 												className="w-[60px] h-[80px] object-cover rounded mr-2"
