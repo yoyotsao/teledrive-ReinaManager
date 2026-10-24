@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -11,6 +11,7 @@ use reina_core::database::dto::InsertGameData;
 use reina_core::database::repository::games_repository::{GamesRepository, ScanPendingRow};
 
 use crate::api::auth::AuthUser;
+use crate::api::covers::handlers::cover_store;
 use crate::api::scan::naming::{ListingRow, derive_game_names, derive_game_sizes, rows_for_game};
 use crate::api::scan::teledrive::{TeleDriveClient, TeleDriveError};
 use crate::app::AppState;
@@ -28,6 +29,8 @@ pub fn routes() -> Router<AppState> {
 #[derive(Serialize)]
 pub struct ScanResponse {
     added_ids: Vec<i32>,
+    /// 雲端已沒有對應檔案而刪除的遊戲（連同遊玩記錄與統計）
+    removed_ids: Vec<i32>,
     pending_ids: Vec<i32>,
 }
 
@@ -78,20 +81,34 @@ async fn scan(
         .map(|name| format!("{}/{name}", state.config.game_folder))
         .collect();
 
+    let prefix = format!("{}/", state.config.game_folder);
+
     let txn = tx::begin(user.store.db()).await?;
-    let result = insert_missing(&txn, &names, &paths).await;
+    let result = sync_games(&txn, &names, &paths, &prefix).await;
     let response = tx::finish(&state, txn, result, |response: &ScanResponse| {
-        !response.added_ids.is_empty()
+        !response.added_ids.is_empty() || !response.removed_ids.is_empty()
     })
     .await?;
+
+    // commit 成功後才刪封面檔，與一般刪除遊戲（rpc run_write）相同
+    if !response.removed_ids.is_empty() {
+        let store = cover_store(&user.store);
+        for &id in &response.removed_ids {
+            let _guard = store.lock_game(id).await;
+            store.remove_game(id).await;
+        }
+    }
     Ok(Json(response))
 }
 
-async fn insert_missing(
+/// 讓資料庫與雲端一致：新增雲端有、資料庫沒有的遊戲；刪除雲端已不存在的遊戲。
+async fn sync_games(
     txn: &DatabaseTransaction,
     names: &[String],
     paths: &[String],
+    prefix: &str,
 ) -> Result<ScanResponse, ApiError> {
+    let removed_ids = remove_missing(txn, paths, prefix).await?;
     let existing = GamesRepository::find_ids_by_teledrive_paths(txn, paths).await?;
     let mut added_ids = Vec::new();
 
@@ -127,8 +144,36 @@ async fn insert_missing(
 
     Ok(ScanResponse {
         added_ids,
+        removed_ids,
         pending_ids,
     })
+}
+
+/// 刪除 `teledrive_path` 在 game 資料夾底下、但雲端已找不到的遊戲。
+/// 遊玩記錄與統計由外鍵 `ON DELETE CASCADE` 一併刪除。
+///
+/// 雲端列表一筆遊戲都沒有時不刪：比較可能是資料夾設定或 TeleDrive 異常，
+/// 而不是使用者真的清空了，避免一次誤刪整個遊戲庫。
+async fn remove_missing(
+    txn: &DatabaseTransaction,
+    paths: &[String],
+    prefix: &str,
+) -> Result<Vec<i32>, ApiError> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    // 名稱推導本身不分大小寫（見 naming），比對也不分，避免只是改了大小寫就被刪掉重建
+    let present: HashSet<String> = paths.iter().map(|path| path.to_lowercase()).collect();
+    let removed_ids: Vec<i32> = GamesRepository::find_teledrive_games_with_prefix(txn, prefix)
+        .await?
+        .into_iter()
+        .filter(|(_, path)| !present.contains(&path.to_lowercase()))
+        .map(|(id, _)| id)
+        .collect();
+    if !removed_ids.is_empty() {
+        GamesRepository::delete_many(txn, removed_ids.clone()).await?;
+    }
+    Ok(removed_ids)
 }
 
 async fn pending(user: AuthUser) -> Result<Json<Vec<ScanPendingRow>>, ApiError> {

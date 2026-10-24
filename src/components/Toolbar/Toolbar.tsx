@@ -38,6 +38,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import TurnRightIcon from "@mui/icons-material/TurnRight";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -65,6 +66,7 @@ import {
 	type ToolKind,
 	type ToolPaths,
 } from "@/components/ToolIntegrationModal";
+import { useCloudScanStore } from "@/hooks/features/games/useCloudScan";
 import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame, useUpdateGame } from "@/hooks/queries/useGames";
@@ -562,6 +564,8 @@ export const Buttongroup = ({
 }: ButtonGroupProps) => {
 	const { t } = useTranslation();
 	const openAddModal = useStore((state) => state.openAddModal);
+	// 网页版：背景扫描后待确认的数量，提示用户打开「添加游戏」挑选候选
+	const scanPendingCount = useCloudScanStore((state) => state.pending.length);
 	const detailFallback = <ThemeSwitcher />;
 
 	return (
@@ -592,9 +596,11 @@ export const Buttongroup = ({
 					{(platformCapabilities.nativeLaunch || isWebRuntime()) && (
 						<LaunchModal />
 					)}
-					<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
-						{t("components.AddModal.addGame", "添加游戏")}
-					</Button>
+					<Badge color="warning" badgeContent={scanPendingCount} max={99}>
+						<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
+							{t("components.AddModal.addGame", "添加游戏")}
+						</Button>
+					</Badge>
 					<FilterSortModal />
 					<ThemeSwitcher />
 				</>

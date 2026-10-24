@@ -55,13 +55,17 @@ Adapter 只处理本数据源的差异。混合搜索、优先级合并、写入
 
 ## 云端扫描的名称解析
 
-`src/metadata/cloudScanResolve.ts` 处理 TeleDrive 里 zip 去掉扩展名后的名称，只有精确相符才自动套用：
+`src/metadata/cloudScanResolve.ts` 处理 TeleDrive 里 zip 去掉扩展名后的名称，只有精确相符才自动套用（忽略大小写、空白、标点符号与拉丁字母重音；名称不足 4 字时不忽略标点）：
 
 1. RJ 号码：查 DLsite 作品类型，游戏类直接采用。
 2. 纯数字：依序在 HGameFree 索引里按外部 ID 反查（`dlsite:RJ…`、`getchu:<id>`、`steam:<id>`），查不到再用 VNDB 的 Steam 反查。数字可能是 Getchu 编号，所以不直接当 Steam App ID 去问 Steam。
-3. 其他名称：去掉结尾的 `v1.0.9`、`[…]` 后，依 `CLOUD_SCAN_SOURCES` 顺序搜索（HGameFree → Steam → VNDB → BGM → YMGal）。
+3. 其他名称：去掉开头的 `[日期][品牌]`、压缩档副档名（含 `.rar.part`），以及结尾的 `v1.0.9`、`[…]`、`(files)` 等括号注记和 `steam版`、`中文版` 等发行标记后，依 `CLOUD_SCAN_SOURCES` 顺序搜索（HGameFree → Steam → VNDB → BGM → YMGal）。
 4. 命中 HGameFree 文章后，用文章里的 Steam／DLsite ID 与标题补完整资料；Steam 名称命中时反过来附上下载站文章（含 `file_url`）。补资料失败不影响命中。
 5. 没有精确命中时，列出候选（包含关系）或各来源搜索前几名，交给用户确认。
+
+扫描由网页版前端在后台自动执行（`useCloudScanAutoRun`，挂在 `App.tsx`）：启动时扫一次，之后每小时一次；页面切到后台也照常执行（只要分页开着，关掉网页就不会扫），回到前台时若已到期会补扫。自动扫描只解析新加入的 `pending` 条目，已在待确认清单的不重查，避免反复请求外部来源触发限流；对话框里的「立即扫描」才会全部重跑。扫描进度与待确认清单放在模块级 store（`useCloudScanStore`），后台扫描、「添加游戏」对话框和工具栏按钮的待确认角标共用同一份状态。网页版「添加游戏」只剩云端扫描结果确认，不再提供单个添加。
+
+每次扫描（`POST /game/api/scan`）也会删除 `teledrive_path` 在 `game/` 下、但云端已找不到对应 zip 或文件夹的游戏，不论是否已套用资料，游玩记录、统计、存档备份记录与合集关联都经由外键 `ON DELETE CASCADE` 一并删除，封面文件在 commit 后清除。云端列表一款游戏都没有时不删除，以免 TeleDrive 异常时清空整个游戏库。手动添加（没有 `teledrive_path`）的游戏不受影响。
 
 待确认清单（`GET /game/api/scan/pending`）只含仍是扫描占位的条目：`id_type` 已不是 `custom`、名称与文件夹名不同，或填了其他自定义字段（简介、开发商、标签等）的条目视为用户已手动处理，不再列入，也不会被重新扫描覆盖。详情页的文件大小来自 `GET /game/api/scan/sizes`（读 TeleDrive 列表，取 `file_hash` 尾端记录的真实长度），文件夹型游戏没有大小。
 

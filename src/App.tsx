@@ -9,6 +9,7 @@ import { UiZoom } from "@/components/UiZoom";
 import { WebAuthGate } from "@/components/WebAuthGate";
 import WindowsHandler from "@/components/Windows";
 import { useWebAuthRequired } from "@/hooks/common/useWebAuthRequired";
+import { useCloudScanAutoRun } from "@/hooks/features/games/useCloudScan";
 import { useServerVersionSync } from "@/hooks/queries/useServerVersion";
 import { appRoutes } from "@/providers/router"; // 引入新的统一配置
 import { SnackbarUtilsConfigurator } from "@/providers/snackBar";
@@ -20,6 +21,12 @@ import { isWebRuntime, platformCapabilities } from "@/services/platform";
 // 只负责挂上版本轮询，不渲染任何内容
 const ServerVersionSync: React.FC = () => {
 	useServerVersionSync();
+	return null;
+};
+
+// 网页版背景定期扫描 TeleDrive 云端，不渲染任何内容
+const CloudScanAutoRun: React.FC = () => {
+	useCloudScanAutoRun();
 	return null;
 };
 
@@ -55,6 +62,7 @@ const App: React.FC = () => {
 		>
 			<SnackbarUtilsConfigurator />
 			{isWebRuntime() && <ServerVersionSync />}
+			{isWebRuntime() && <CloudScanAutoRun />}
 			<UiZoom />
 			<ToolpadReactRouterAppProvider navigation={Navigation}>
 				{platformCapabilities.desktopShell && <WindowsHandler />}

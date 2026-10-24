@@ -51,6 +51,15 @@ const FALLBACK_PER_SOURCE = 2;
 /** 結尾的版本號，如 ` v1.0.9`、`_Ver1.2`。要有 v/ver 前綴，避免把 `Game 2` 之類的續作誤當版本。 */
 const TRAILING_VERSION = /[\s_-]+(?:v|ver\.?)\s*\d+(?:\.\d+)*[a-z]?$/i;
 const TRAILING_BRACKETS = /\s*(?:\[[^\]]*\]|［[^］]*］)$/;
+/** 結尾的括號註記，如 `(files)`、`(mdf+mds)`、`(ver.1.01)`、`（简）`。 */
+const TRAILING_PARENS = /\s*(?:\([^)]*\)|（[^）]*）)$/;
+/** 結尾的發行版本標記，如 `steam版`、`DL版`、`中文版`、`无码版`。 */
+const TRAILING_EDITION =
+	/\s+(?:steam|dl|パッケージ|官方中文|中文|繁中|简中|繁體中文|简体中文|无码|無碼|無修正)版$/i;
+/** 開頭的 `[日期][品牌]` 之類方括號標記。 */
+const LEADING_BRACKETS = /^(?:\[[^\]]*\]|【[^】]*】|［[^］]*］)\s*/;
+/** 壓縮檔副檔名，含分卷與未傳完的 `.part`。 */
+const ARCHIVE_EXTENSION = /(?:\.part\d*)?\.(?:rar|zip|7z)(?:\.part)?$/i;
 
 function candidateTitles(candidate: SourceCandidate): (string | undefined)[] {
 	const display = candidate.display;
@@ -76,12 +85,18 @@ async function attempt<T>(step: () => Promise<T | null>): Promise<T | null> {
 	}
 }
 
-/** 去掉資料夾名結尾的版本號與方括號標記，得到搜尋用的名稱。 */
+/**
+ * 去掉資料夾名前後的雜訊，得到搜尋用的名稱：開頭的 `[日期][品牌]`、壓縮檔副檔名、
+ * 結尾的版本號、方括號／括號註記與 `steam版` 等發行標記。
+ */
 export function cleanScanQuery(name: string): string {
-	let query = name.trim();
+	let query = name.trim().replace(ARCHIVE_EXTENSION, "");
 	for (;;) {
 		const next = query
+			.replace(LEADING_BRACKETS, "")
 			.replace(TRAILING_BRACKETS, "")
+			.replace(TRAILING_PARENS, "")
+			.replace(TRAILING_EDITION, "")
 			.replace(TRAILING_VERSION, "")
 			.trim();
 		if (next === query) break;

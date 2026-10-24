@@ -574,6 +574,19 @@ describe("resolveCloudScanName", () => {
 			["Hypnosis App 2", "Hypnosis App 2"],
 			["ThornSin 0.75", "ThornSin 0.75"],
 			["v1.0", "v1.0"],
+			[
+				"[230815][Playmeow] 女子大生との同棲生活 steam版 (files)",
+				"女子大生との同棲生活",
+			],
+			["[990625][D.O.] 加奈 ～いもうと～.rar.part", "加奈 ～いもうと～"],
+			["[000515][工画堂スタジオ] 魔导异元素[简中] (mdf+mds)", "魔导异元素"],
+			["[010301][セガゲームス] 樱花大战2（简）", "樱花大战2"],
+			["催淫性活(ver.1.01)", "催淫性活"],
+			[
+				"淫妖蟲 穢 ～凌蝕桃源退魔録～ 中文版 (認証回避済)",
+				"淫妖蟲 穢 ～凌蝕桃源退魔録～",
+			],
+			["Game.part1.rar", "Game"],
 		])("%s → %s", (raw, expected) => {
 			expect(cleanScanQuery(raw)).toBe(expected);
 		});

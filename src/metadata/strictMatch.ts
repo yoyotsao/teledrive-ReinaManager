@@ -32,6 +32,19 @@ export function normalizeTitle(value: string): string {
 	return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/**
+ * 比對「完全相同」用的緊縮形式：再去掉空白、標點與符號，以及拉丁字母的重音。
+ * 資料夾名與資料庫標題常只差在 `・`、`～`、`:`／`：`、`-Belle Époque-` 這類寫法。
+ * 只去拉丁重音（U+0300–036F），日文濁音拆開後的 U+3099 不能去，否則が會等於か。
+ */
+export function compactTitle(value: string): string {
+	return normalizeTitle(value)
+		.normalize("NFKD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.normalize("NFC")
+		.replace(/[\p{P}\p{S}\p{Z}]/gu, "");
+}
+
 function length(value: string): number {
 	return [...value].length;
 }
@@ -42,6 +55,7 @@ export function classifyTitleMatch(
 ): TitleMatch {
 	const normalizedQuery = normalizeTitle(query);
 	if (!normalizedQuery) return { level: "none" };
+	const compactQuery = compactTitle(query);
 
 	let candidate: string | undefined;
 	for (const title of titles) {
@@ -49,7 +63,12 @@ export function classifyTitleMatch(
 		const normalizedTitle = normalizeTitle(title);
 		if (!normalizedTitle) continue;
 
-		if (normalizedTitle === normalizedQuery) {
+		if (
+			normalizedTitle === normalizedQuery ||
+			// 短名稱差一個符號可能就是不同作品（如 Rei／Rei!），太短時不放寬
+			(length(compactQuery) >= MIN_CANDIDATE_LENGTH &&
+				compactTitle(title) === compactQuery)
+		) {
 			return { level: "exact", matched: title };
 		}
 

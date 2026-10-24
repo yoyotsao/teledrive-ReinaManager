@@ -101,3 +101,30 @@ async fn 已手動補過資料的條目不算_pending() {
     let names: Vec<_> = pending.iter().map(|row| row.name.as_str()).collect();
     assert_eq!(names, vec!["Plain"]);
 }
+
+#[tokio::test]
+async fn 依前綴列出掃描建立的雲端遊戲() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = connect_database(&dir.path().join("t.db")).await.unwrap();
+
+    let foo = GamesRepository::insert(
+        &db,
+        InsertGameData::cloud_placeholder("Foo", Some("game/Foo".into())),
+    )
+    .await
+    .unwrap();
+    GamesRepository::insert(&db, InsertGameData::cloud_placeholder("Manual", None))
+        .await
+        .unwrap();
+    GamesRepository::insert(
+        &db,
+        InsertGameData::cloud_placeholder("Other", Some("other/Other".into())),
+    )
+    .await
+    .unwrap();
+
+    let rows = GamesRepository::find_teledrive_games_with_prefix(&db, "game/")
+        .await
+        .unwrap();
+    assert_eq!(rows, vec![(foo.id, "game/Foo".to_string())]);
+}

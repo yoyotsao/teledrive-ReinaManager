@@ -45,7 +45,11 @@ vi.mock("@/services/requestContext", () => ({
 	getNetworkRequestContext: () => ({}),
 }));
 
-import { useCloudScan } from "./useCloudScan";
+import {
+	parseScanDecisions,
+	resetCloudScanState,
+	useCloudScan,
+} from "./useCloudScan";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
 	<QueryClientProvider client={new QueryClient()}>
@@ -68,6 +72,7 @@ const draft: GameMetadataDraft = {
 
 describe("useCloudScan", () => {
 	beforeEach(() => {
+		resetCloudScanState();
 		for (const fn of [
 			startCloudScan,
 			getScanPending,
@@ -380,5 +385,109 @@ describe("useCloudScan", () => {
 		expect(resolveCloudScanName).toHaveBeenCalledTimes(1);
 		expect(updateGame).not.toHaveBeenCalled();
 		expect(result.current.error).toBe(limited);
+	});
+
+	it("背景掃描只解析新加入的條目，不重查待確認項目", async () => {
+		startCloudScan.mockResolvedValue({ added_ids: [7], pending_ids: [7, 8] });
+		getScanPending.mockResolvedValue([
+			{
+				id: 7,
+				name: "新遊戲",
+				teledrive_path: "game/新遊戲",
+				scan_status: "pending",
+				scan_candidates: [],
+			},
+			{
+				id: 8,
+				name: "舊待確認",
+				teledrive_path: "game/舊待確認",
+				scan_status: "needs_confirmation",
+				scan_candidates: [],
+			},
+		]);
+		resolveCloudScanName.mockResolvedValue({
+			kind: "needs_confirmation",
+			candidates: [],
+		});
+
+		const { result } = renderHook(() => useCloudScan(), { wrapper });
+		await act(async () => {
+			await result.current.scan({ onlyNew: true });
+		});
+
+		expect(resolveCloudScanName.mock.calls.map((call) => call[0])).toEqual([
+			"新遊戲",
+		]);
+		expect(result.current.lastScanAt).not.toBeNull();
+	});
+
+	it("掃描進行中不會重複啟動", async () => {
+		let release: () => void = () => {};
+		startCloudScan.mockReturnValue(
+			new Promise((resolve) => {
+				release = () => resolve({ added_ids: [], pending_ids: [] });
+			}),
+		);
+		getScanPending.mockResolvedValue([]);
+
+		const { result } = renderHook(() => useCloudScan(), { wrapper });
+		let first: Promise<void> = Promise.resolve();
+		act(() => {
+			first = result.current.scan();
+		});
+		await waitFor(() => expect(result.current.running).toBe(true));
+		await act(async () => {
+			await result.current.scan();
+			release();
+			await first;
+		});
+
+		expect(startCloudScan).toHaveBeenCalledTimes(1);
+	});
+
+	it("匯入建議：套用仍在待確認的條目，其餘略過", async () => {
+		getScanPending.mockResolvedValue([
+			{
+				id: 2,
+				name: "B",
+				teledrive_path: "game/B",
+				scan_status: "needs_confirmation",
+				scan_candidates: [],
+			},
+		]);
+		const getGameById = vi.fn(async () => draft);
+		const { result } = renderHook(() => useCloudScan({ getGameById }), {
+			wrapper,
+		});
+
+		let outcome: unknown;
+		await act(async () => {
+			outcome = await result.current.applyDecisions([
+				{ id: 2, source: "vndb", externalId: "v1" },
+				{ id: 99, source: "bgm", externalId: "1" },
+			]);
+		});
+
+		expect(outcome).toEqual({ applied: 1, skipped: 1, failed: 0 });
+		expect(getGameById).toHaveBeenCalledTimes(1);
+		expect(getGameById).toHaveBeenCalledWith("v1", "vndb");
+		expect(updateGame).toHaveBeenCalledWith(
+			2,
+			expect.objectContaining({ scan_status: "complete" }),
+		);
+		expect(result.current.running).toBe(false);
+	});
+
+	it("解析建議 JSON，格式不對回傳 null", () => {
+		expect(
+			parseScanDecisions(
+				'[{"id":1,"source":"vndb","externalId":"v1","name":"x"}]',
+			),
+		).toEqual([{ id: 1, source: "vndb", externalId: "v1" }]);
+		expect(parseScanDecisions("not json")).toBeNull();
+		expect(
+			parseScanDecisions('[{"id":"1","source":"vndb","externalId":"v1"}]'),
+		).toBeNull();
+		expect(parseScanDecisions('{"id":1}')).toBeNull();
 	});
 });

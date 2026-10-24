@@ -11,9 +11,8 @@ describe("addModalTabs", () => {
 		expect(defaultAddModalTab(false)).toBe("single");
 	});
 
-	it("網頁版沒有批量分頁，預設雲端掃描", () => {
-		expect(availableAddModalTabs(true)).toEqual(["cloud", "single"]);
-		expect(availableAddModalTabs(true)).not.toContain("bulk");
+	it("網頁版只有雲端掃描分頁", () => {
+		expect(availableAddModalTabs(true)).toEqual(["cloud"]);
 		expect(defaultAddModalTab(true)).toBe("cloud");
 	});
 });

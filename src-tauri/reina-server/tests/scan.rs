@@ -337,3 +337,47 @@ async fn teledrive_列表中途失敗時回_502_不留下任何條目() {
         "列表失敗時不能寫入任何遊戲"
     );
 }
+
+#[tokio::test]
+async fn 雲端已刪除的遊戲在重掃時移除() {
+    let listing: Listing = Arc::new(Mutex::new(vec![
+        item("Keep", true),
+        item("Gone.zip", false),
+    ]));
+    let app = app_with(listing.clone()).await;
+    call(&app, Method::POST, "/game/api/scan").await;
+    let before = app.data_version().await;
+
+    listing
+        .lock()
+        .unwrap()
+        .retain(|row| row["filename"] != "Gone.zip");
+    let (status, json) = call(&app, Method::POST, "/game/api/scan").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["removed_ids"].as_array().unwrap().len(), 1);
+    assert_eq!(app.data_version().await, before + 1);
+
+    let (_, pending) = call(&app, Method::GET, "/game/api/scan/pending").await;
+    let paths: Vec<&str> = pending
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["teledrive_path"].as_str().unwrap())
+        .collect();
+    assert_eq!(paths, vec!["game/Keep"]);
+}
+
+#[tokio::test]
+async fn 雲端列表為空時不刪除任何遊戲() {
+    let listing: Listing = Arc::new(Mutex::new(vec![item("Foo", true)]));
+    let app = app_with(listing.clone()).await;
+    call(&app, Method::POST, "/game/api/scan").await;
+
+    listing.lock().unwrap().clear();
+    let (status, json) = call(&app, Method::POST, "/game/api/scan").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["removed_ids"].as_array().unwrap().is_empty());
+
+    let (_, pending) = call(&app, Method::GET, "/game/api/scan/pending").await;
+    assert_eq!(pending.as_array().unwrap().len(), 1);
+}

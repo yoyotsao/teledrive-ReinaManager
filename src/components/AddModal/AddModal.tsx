@@ -476,28 +476,31 @@ const AddModal: React.FC = () => {
 				<DialogTitle>
 					{t("components.AddModal.addGame", "添加游戏")}
 				</DialogTitle>
-				<Tabs
-					value={activeTab}
-					onChange={(_, value: AddModalTab) => setActiveTab(value)}
-					variant="fullWidth"
-				>
-					{tabs.map((tab) => (
-						<Tab
-							key={tab}
-							value={tab}
-							label={
-								tab === "single"
-									? t("components.AddModal.singleTab", "单个添加")
-									: tab === "bulk"
-										? t("components.AddModal.bulkTab", "批量导入")
-										: tab === "collection"
-											? t("components.AddModal.cloudTab", "云端收藏")
-											: t("components.AddModal.cloudScanTab", "云端扫描")
-							}
-							disabled={isBusy}
-						/>
-					))}
-				</Tabs>
+				{/* 只有一個分頁（網頁版）時不顯示分頁列 */}
+				{tabs.length > 1 && (
+					<Tabs
+						value={activeTab}
+						onChange={(_, value: AddModalTab) => setActiveTab(value)}
+						variant="fullWidth"
+					>
+						{tabs.map((tab) => (
+							<Tab
+								key={tab}
+								value={tab}
+								label={
+									tab === "single"
+										? t("components.AddModal.singleTab", "单个添加")
+										: tab === "bulk"
+											? t("components.AddModal.bulkTab", "批量导入")
+											: tab === "collection"
+												? t("components.AddModal.cloudTab", "云端收藏")
+												: t("components.AddModal.cloudScanTab", "云端扫描")
+								}
+								disabled={isBusy}
+							/>
+						))}
+					</Tabs>
+				)}
 				<DialogContent
 					sx={{ pt: 2, display: activeTab === "single" ? undefined : "none" }}
 				>

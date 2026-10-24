@@ -901,6 +901,26 @@ impl GamesRepository {
         Ok(version)
     }
 
+    /// 所有 `teledrive_path` 以 `prefix` 開頭的遊戲（掃描建立的雲端遊戲），回傳 (id, path)。
+    pub async fn find_teledrive_games_with_prefix(
+        conn: &impl ConnectionTrait,
+        prefix: &str,
+    ) -> Result<Vec<(i32, String)>, DbErr> {
+        let rows: Vec<(i32, Option<String>)> = games::Entity::find()
+            .select_only()
+            .column(games::Column::Id)
+            .column(games::Column::TeledrivePath)
+            .filter(games::Column::TeledrivePath.starts_with(prefix))
+            .into_tuple()
+            .all(conn)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, path)| path.map(|path| (id, path)))
+            .collect())
+    }
+
     pub async fn find_ids_by_teledrive_paths(
         conn: &impl ConnectionTrait,
         paths: &[String],
@@ -938,7 +958,11 @@ impl GamesRepository {
             .as_deref()
             .and_then(|path| path.rsplit('/').next())
             .unwrap_or_default();
-        if custom.name.as_deref().is_some_and(|name| name != placeholder) {
+        if custom
+            .name
+            .as_deref()
+            .is_some_and(|name| name != placeholder)
+        {
             return true;
         }
         let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(custom) else {

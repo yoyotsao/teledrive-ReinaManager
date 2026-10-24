@@ -4,6 +4,8 @@ import { AppError } from "@/utils/errors";
 
 export interface ScanResult {
 	added_ids: number[];
+	/** 雲端已沒有對應檔案而刪除的遊戲（連同遊玩記錄與統計） */
+	removed_ids: number[];
 	pending_ids: number[];
 }
 

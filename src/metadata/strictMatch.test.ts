@@ -90,3 +90,28 @@ describe("isDlsiteGameWorkType", () => {
 		expect(isDlsiteGameWorkType(undefined)).toBe(false);
 	});
 });
+
+describe("classifyTitleMatch：忽略標點與空白差異", () => {
+	it.each([
+		["Cafe Little Wish", "Cafe・LittleWish"],
+		[
+			"Re：ゼロから始める異世界生活 偽りの王選候補",
+			"Re:ゼロから始める異世界生活 偽りの王選候補",
+		],
+		[
+			"乙女理論とその後の周辺 -Belle Epoque-",
+			"乙女理論とその後の周辺 -Belle Époque-",
+		],
+		["加奈 ～いもうと～", "加奈～いもうと～"],
+	])("%s = %s", (query, title) => {
+		expect(classifyTitleMatch(query, [title]).level).toBe("exact");
+	});
+
+	it("日文濁音不能被當成清音", () => {
+		expect(classifyTitleMatch("がっこう", ["かっこう"]).level).toBe("none");
+	});
+
+	it("緊縮後過短時不採用", () => {
+		expect(classifyTitleMatch("h", ["H+"]).level).toBe("none");
+	});
+});
