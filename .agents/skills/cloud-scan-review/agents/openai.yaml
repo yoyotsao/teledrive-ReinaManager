@@ -1,0 +1,4 @@
+interface:
+  display_name: "云端扫描待确认整理"
+  short_description: "导出待确认清单、读 zip 辨认游戏，产生网页「导入建议」用的 JSON"
+  default_prompt: "使用 $cloud-scan-review 整理网页版云端扫描的待确认游戏，产生导入建议 JSON。"
