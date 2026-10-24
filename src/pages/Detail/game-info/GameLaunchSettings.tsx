@@ -27,6 +27,7 @@ import {
 	handleLaunchFile,
 	splitExecutablePath,
 } from "@/services/fs/fileDialog";
+import { platformCapabilities } from "@/services/platform";
 import type { FullGameData, GameData, UpdateGameParams } from "@/types";
 import { getUserErrorMessage } from "@/utils/errors";
 import { getGameDisplayName } from "@/utils/game";
@@ -35,7 +36,8 @@ import { isInvalidExecutableName } from "./gameInfoEditData";
 import { SteamLaunchAssociationDialog } from "./SteamLaunchAssociationDialog";
 import { useSteamAssociation } from "./useSteamAssociation";
 
-const PATH_SEPARATOR = sep();
+// 网页版没有 Tauri path 插件；在模块载入时呼叫 sep() 会直接丢错，整个详情页无法打开
+const PATH_SEPARATOR = platformCapabilities.nativePaths ? sep() : "/";
 
 interface GameLaunchSettingsProps {
 	selectedGame: GameData;
