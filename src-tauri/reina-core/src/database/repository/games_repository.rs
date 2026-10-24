@@ -59,7 +59,7 @@ pub struct ScanPendingRow {
 }
 
 #[derive(Clone, Copy, Default)]
-pub(crate) struct ToolLaunchDefaults {
+pub struct ToolLaunchDefaults {
     le_launch: bool,
     magpie: bool,
 }
@@ -445,7 +445,7 @@ impl GamesRepository {
         Ok(updates)
     }
 
-    pub(crate) async fn tool_launch_defaults<C: ConnectionTrait>(
+    pub async fn tool_launch_defaults<C: ConnectionTrait>(
         db: &C,
     ) -> Result<ToolLaunchDefaults, DbErr> {
         let settings = User::find_by_id(1).one(db).await?;
