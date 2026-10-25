@@ -16,9 +16,16 @@ enum PackageFormat {
     Zip,
 }
 
+struct CodecPackage {
+    version: &'static str,
+    file_name: &'static str,
+    url: &'static str,
+    sha256: &'static str,
+}
+
 struct SevenZipPackage {
     platform: &'static str,
-    // Windows 与 Linux x64/arm64 使用带扩展编解码器的 7-Zip-zstd；
+    // Windows 使用官方 7-Zip 和单独的 Zstd 插件；Linux x64/arm64 使用 7-Zip-zstd。
     // Linux x86 与 macOS 暂时维持官方 7-Zip。
     version: &'static str,
     file_name: &'static str,
@@ -30,6 +37,7 @@ struct SevenZipPackage {
     license_file_name: &'static str,
     /// 压缩包内不含许可证时，从该地址下载（url, sha256）。
     license_download: Option<(&'static str, &'static str)>,
+    codec: Option<&'static CodecPackage>,
 }
 
 fn main() {
@@ -56,6 +64,16 @@ fn prepare_seven_zip(manifest_dir: &Path) -> Result<(), String> {
         "cargo:rerun-if-changed={}",
         resource_root.join(".build-info").display()
     );
+    if package.codec.is_some() {
+        println!(
+            "cargo:rerun-if-changed={}",
+            resource_root.join("Codecs/zstd.dll").display()
+        );
+        println!(
+            "cargo:rerun-if-changed={}",
+            resource_root.join("Codecs/LICENSE").display()
+        );
+    }
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ARCH");
 
@@ -92,6 +110,16 @@ fn prepare_seven_zip_files(
         PackageFormat::TarXz => extract_tar_xz(&archive_path, &extracted)?,
         PackageFormat::Zip => extract_zip(&archive_path, &extracted)?,
     }
+    let codec_extracted = if let Some(codec) = package.codec {
+        let codec_archive = staging.join(codec.file_name);
+        download_file(codec.url, &codec_archive)?;
+        verify_sha256(&codec_archive, codec.sha256)?;
+        let extracted = staging.join("codec-extracted");
+        extract_7z(&codec_archive, &extracted)?;
+        Some(extracted)
+    } else {
+        None
+    };
 
     remove_directory_if_exists(resource_root)?;
     fs::create_dir_all(resource_root)
@@ -100,6 +128,13 @@ fn prepare_seven_zip_files(
     copy_extracted_file(&extracted, package.executable, resource_root)?;
     if let Some(library) = package.required_library {
         copy_extracted_file(&extracted, library, resource_root)?;
+    }
+    if let Some(codec_extracted) = codec_extracted {
+        let codec_root = resource_root.join("Codecs");
+        fs::create_dir_all(&codec_root)
+            .map_err(|error| format!("创建 7-Zip 插件目录失败: {error}"))?;
+        copy_extracted_file(&codec_extracted, "zstd.dll", &codec_root)?;
+        copy_extracted_file(&codec_extracted, "LICENSE", &codec_root)?;
     }
     match package.license_download {
         Some((url, sha256)) => {
@@ -111,65 +146,83 @@ fn prepare_seven_zip_files(
     }
     fs::write(
         resource_root.join("NOTICE.md"),
-        format!(
-            "7-Zip {} is bundled at build time.\nSource: {}\nLicense and redistribution terms: see {}.\n",
-            package.version, package.url, package.license_file_name
-        ),
+        match package.codec {
+            Some(codec) => format!(
+                "7-Zip {} and Zstd codec {} are bundled at build time.\n7-Zip source: {}\n7-Zip license: {}\nCodec source: {}\nCodec license: Codecs/LICENSE\n",
+                package.version, codec.version, package.url, package.license_file_name, codec.url
+            ),
+            None => format!(
+                "7-Zip {} is bundled at build time.\nSource: {}\nLicense and redistribution terms: see {}.\n",
+                package.version, package.url, package.license_file_name
+            ),
+        },
     )
     .map_err(|error| format!("写入 7-Zip NOTICE 失败: {error}"))?;
     fs::write(
         resource_root.join(".build-info"),
-        format!("{}\n{}\n", package.version, package.platform),
+        seven_zip_build_info(package),
     )
     .map_err(|error| format!("写入 7-Zip 构建标记失败: {error}"))?;
     ensure_executable_permission(&resource_root.join(package.executable))
 }
 
 fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
-    static WINDOWS_X64: SevenZipPackage = SevenZipPackage {
+    static WINDOWS_X64_CODEC: CodecPackage = CodecPackage {
         version: "26.02-zstd-v1.5.7-R2",
+        file_name: "Codecs-x64.7z",
+        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/Codecs-x64.7z",
+        sha256: "2b20361214d0f7d06acc5567eb9bc90ac040204b69caf16915e9cb68d00747aa",
+    };
+    static WINDOWS_X86_CODEC: CodecPackage = CodecPackage {
+        version: "26.02-zstd-v1.5.7-R2",
+        file_name: "Codecs-x86.7z",
+        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/Codecs-x86.7z",
+        sha256: "0057dc2c46ee5fcfa1521fca8fdfdd3dfa842af3723666d2f67d4a5374bb89e8",
+    };
+    static WINDOWS_ARM64_CODEC: CodecPackage = CodecPackage {
+        version: "26.02-zstd-v1.5.7-R2",
+        file_name: "Codecs-arm64.7z",
+        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/Codecs-arm64.7z",
+        sha256: "c4408902e4d9774f54c11c23a42a48d098745c8a78f625c698f5a8ab6a433bd5",
+    };
+    static WINDOWS_X64: SevenZipPackage = SevenZipPackage {
+        version: "26.02",
         platform: "windows-x64",
-        file_name: "7z26.02-zstd-x64.exe",
-        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/7z26.02-zstd-x64.exe",
-        sha256: "22dc4608d911d7c831437b969db66a42d0477cd3f5d93987cae9f59774857fc1",
+        file_name: "7z2602-x64.exe",
+        url: "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-x64.exe",
+        sha256: "6745fa76dc2ea031596d8678f6f6b99c3c1b435b4164a63485adbbc7b8d82ef0",
         executable: "7z.exe",
         required_library: Some("7z.dll"),
         format: PackageFormat::WindowsInstaller,
-        license_file_name: "COPYING",
-        license_download: Some((
-            "https://raw.githubusercontent.com/mcmilk/7-Zip-zstd/v26.02-v1.5.7-R2/COPYING",
-            "efd01ecf087d0345468c57f7146879952c39c8daf4c461876a95de1c0d1722f3",
-        )),
+        license_file_name: "License.txt",
+        license_download: None,
+        codec: Some(&WINDOWS_X64_CODEC),
     };
     static WINDOWS_X86: SevenZipPackage = SevenZipPackage {
-        version: "26.02-zstd-v1.5.7-R2",
+        version: "26.02",
         platform: "windows-x86",
-        file_name: "7z26.02-zstd-x86.exe",
-        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/7z26.02-zstd-x86.exe",
-        sha256: "9d509425fdbea2a85b77beaa246dfb63a71c0ac70dd443cf2ed3cddcf1b4992d",
+        file_name: "7z2602.exe",
+        url: "https://github.com/ip7z/7zip/releases/download/26.02/7z2602.exe",
+        sha256: "17d894c17b04984b6ffcc1b31926b39c42d315cd861c3adbf7f34bd941d529ac",
         executable: "7z.exe",
         required_library: Some("7z.dll"),
         format: PackageFormat::WindowsInstaller,
-        license_file_name: "COPYING",
-        license_download: Some((
-            "https://raw.githubusercontent.com/mcmilk/7-Zip-zstd/v26.02-v1.5.7-R2/COPYING",
-            "efd01ecf087d0345468c57f7146879952c39c8daf4c461876a95de1c0d1722f3",
-        )),
+        license_file_name: "License.txt",
+        license_download: None,
+        codec: Some(&WINDOWS_X86_CODEC),
     };
     static WINDOWS_ARM64: SevenZipPackage = SevenZipPackage {
-        version: "26.02-zstd-v1.5.7-R2",
+        version: "26.02",
         platform: "windows-arm64",
-        file_name: "7z26.02-zstd-arm64.exe",
-        url: "https://github.com/mcmilk/7-Zip-zstd/releases/download/v26.02-v1.5.7-R2/7z26.02-zstd-arm64.exe",
-        sha256: "9749af751056e203286175527e906acc1ad0ed7b0ccc1a22de05141d77170961",
+        file_name: "7z2602-arm64.exe",
+        url: "https://github.com/ip7z/7zip/releases/download/26.02/7z2602-arm64.exe",
+        sha256: "7c6fde79ed5e11b81c7bb6573b7962d3b6322aa5fce69c33ed19f672b55173ab",
         executable: "7z.exe",
         required_library: Some("7z.dll"),
         format: PackageFormat::WindowsInstaller,
-        license_file_name: "COPYING",
-        license_download: Some((
-            "https://raw.githubusercontent.com/mcmilk/7-Zip-zstd/v26.02-v1.5.7-R2/COPYING",
-            "efd01ecf087d0345468c57f7146879952c39c8daf4c461876a95de1c0d1722f3",
-        )),
+        license_file_name: "License.txt",
+        license_download: None,
+        codec: Some(&WINDOWS_ARM64_CODEC),
     };
     static LINUX_X64: SevenZipPackage = SevenZipPackage {
         version: "26.02-zstd-v1.5.7-R2",
@@ -185,6 +238,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
             "https://raw.githubusercontent.com/mcmilk/7-Zip-zstd/v26.02-v1.5.7-R2/COPYING",
             "efd01ecf087d0345468c57f7146879952c39c8daf4c461876a95de1c0d1722f3",
         )),
+        codec: None,
     };
     static LINUX_X86: SevenZipPackage = SevenZipPackage {
         version: "26.02",
@@ -197,6 +251,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
         format: PackageFormat::TarXz,
         license_file_name: "License.txt",
         license_download: None,
+        codec: None,
     };
     static LINUX_ARM64: SevenZipPackage = SevenZipPackage {
         version: "26.02-zstd-v1.5.7-R2",
@@ -212,6 +267,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
             "https://raw.githubusercontent.com/mcmilk/7-Zip-zstd/v26.02-v1.5.7-R2/COPYING",
             "efd01ecf087d0345468c57f7146879952c39c8daf4c461876a95de1c0d1722f3",
         )),
+        codec: None,
     };
     static MACOS_X64: SevenZipPackage = SevenZipPackage {
         version: "26.02",
@@ -224,6 +280,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
         format: PackageFormat::TarXz,
         license_file_name: "License.txt",
         license_download: None,
+        codec: None,
     };
     static MACOS_ARM64: SevenZipPackage = SevenZipPackage {
         version: "26.02",
@@ -236,6 +293,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
         format: PackageFormat::TarXz,
         license_file_name: "License.txt",
         license_download: None,
+        codec: None,
     };
 
     let target_os = env::var("CARGO_CFG_TARGET_OS")
@@ -259,7 +317,7 @@ fn current_seven_zip_package() -> Result<&'static SevenZipPackage, String> {
 }
 
 fn seven_zip_is_cached(resource_root: &Path, package: &SevenZipPackage, executable: &Path) -> bool {
-    let build_info = format!("{}\n{}\n", package.version, package.platform);
+    let build_info = seven_zip_build_info(package);
     let library_exists = package
         .required_library
         .is_none_or(|library| resource_root.join(library).is_file());
@@ -268,6 +326,18 @@ fn seven_zip_is_cached(resource_root: &Path, package: &SevenZipPackage, executab
         && executable.is_file()
         && library_exists
         && resource_root.join(package.license_file_name).is_file()
+        && package.codec.is_none_or(|_| {
+            resource_root.join("Codecs/zstd.dll").is_file()
+                && resource_root.join("Codecs/LICENSE").is_file()
+        })
+}
+
+fn seven_zip_build_info(package: &SevenZipPackage) -> String {
+    let mut value = format!("{}\n{}\n", package.version, package.platform);
+    if let Some(codec) = package.codec {
+        value.push_str(&format!("{}\n{}\n", codec.version, codec.sha256));
+    }
+    value
 }
 
 fn download_file(url: &str, destination: &Path) -> Result<(), String> {

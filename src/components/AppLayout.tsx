@@ -27,15 +27,16 @@ import {
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
 import { useActiveTaskCount } from "@/hooks/queries/useTasks";
 import { GameDeletionProvider } from "@/providers/GameDeletionProvider";
+import { platformCapabilities, publicAssetUrl } from "@/services/platform";
 import { type SelectedCategory, useStore } from "@/store/appStore";
 import { DefaultGroup } from "@/types/collection";
 import { getDeveloperCategoryGameIds } from "@/utils/game/gameIndex";
 
 /**
- * 侧边栏底部信息组件
+ * 下载任务按钮（桌面版专属，把 useActiveTaskCount 隔离在此避免网页版条件式呼叫 hook）
  * @returns {JSX.Element}
  */
-function SidebarFooter() {
+function DesktopTaskButton() {
 	const { t } = useTranslation();
 	const openTaskManager = useStore((s) => s.openTaskManager);
 	const { data: activeTaskCount = 0 } = useActiveTaskCount();
@@ -45,19 +46,29 @@ function SidebarFooter() {
 		: taskManagerLabel;
 
 	return (
+		<Tooltip title={accessibleLabel}>
+			<IconButton
+				onClick={openTaskManager}
+				color="inherit"
+				aria-label={accessibleLabel}
+				size="large"
+			>
+				<Badge badgeContent={activeTaskCount} color="primary" max={99}>
+					<DownloadRoundedIcon />
+				</Badge>
+			</IconButton>
+		</Tooltip>
+	);
+}
+
+/**
+ * 侧边栏底部信息组件
+ * @returns {JSX.Element}
+ */
+function SidebarFooter() {
+	return (
 		<Box className="absolute bottom-0 left-0 right-0 w-full text-center border-t select-none py-1 gap-4 flex flex-col items-center justify-center">
-			<Tooltip title={accessibleLabel}>
-				<IconButton
-					onClick={openTaskManager}
-					color="inherit"
-					aria-label={accessibleLabel}
-					size="large"
-				>
-					<Badge badgeContent={activeTaskCount} color="primary" max={99}>
-						<DownloadRoundedIcon />
-					</Badge>
-				</IconButton>
-			</Tooltip>
+			{platformCapabilities.desktopShell && <DesktopTaskButton />}
 			<Typography
 				variant="caption"
 				className="w-full text-center whitespace-nowrap overflow-hidden"
@@ -82,6 +93,20 @@ function DeveloperGameSearchBox({ categoryKey }: { categoryKey: string }) {
 	return <SearchBox scopeGameIds={developerGameIds} applyNsfwFilter={false} />;
 }
 
+function CollectionGameSearchBox() {
+	const value = useStore((s) => s.collectionGameSearch);
+	const setValue = useStore((s) => s.setCollectionGameSearch);
+	const { t } = useTranslation();
+	return (
+		<SearchBox
+			mode="controlled"
+			value={value}
+			onValueChange={setValue}
+			ariaLabel={t("pages.Collection.gameSort.search", "搜索当前分类的游戏")}
+		/>
+	);
+}
+
 type CollectionEntitySearchKind = "groups" | "categories" | "developers";
 
 type CollectionTitleMode =
@@ -91,6 +116,7 @@ type CollectionTitleMode =
 			scrollKey: string;
 	  }
 	| { type: "developer-game-search"; categoryKey: string }
+	| { type: "collection-game-search" }
 	| { type: "none" };
 
 function getCollectionTitleMode(
@@ -112,8 +138,8 @@ function getCollectionTitleMode(
 		};
 	}
 
-	if (selectedCategory !== null) {
-		return { type: "none" };
+	if (selectedCategory?.type === "real") {
+		return { type: "collection-game-search" };
 	}
 
 	switch (currentGroupId) {
@@ -235,7 +261,7 @@ const CustomAppTitle = () => {
 			</Tooltip>
 			<Avatar
 				alt="Reina"
-				src="/images/reina.png"
+				src={publicAssetUrl("images/reina.png")}
 				onDragStart={(event) => event.preventDefault()}
 			/>
 			<Typography variant="h6">ReinaManager</Typography>
@@ -249,6 +275,8 @@ const CustomAppTitle = () => {
 				/>
 			) : collectionTitleMode.type === "developer-game-search" ? (
 				<DeveloperGameSearchBox categoryKey={collectionTitleMode.categoryKey} />
+			) : collectionTitleMode.type === "collection-game-search" ? (
+				<CollectionGameSearchBox />
 			) : null}
 		</Stack>
 	);
@@ -355,7 +383,9 @@ export const Layout: React.FC = () => {
 	return (
 		<>
 			<AddModal />
-			<TaskManagerDialog open={taskManagerOpen} onClose={closeTaskManager} />
+			{platformCapabilities.desktopShell && (
+				<TaskManagerDialog open={taskManagerOpen} onClose={closeTaskManager} />
+			)}
 			<GameDeletionProvider>
 				<DashboardLayout
 					slots={{

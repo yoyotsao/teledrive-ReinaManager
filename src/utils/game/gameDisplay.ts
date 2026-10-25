@@ -2,6 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import i18next from "i18next";
 import { join } from "pathe";
 import { getAppDataDirPath } from "@/services/fs/pathCache";
+import { publicAssetUrl } from "@/services/platform";
 import type { GameData } from "@/types";
 import { buildTauriProtocolUrl } from "@/utils/tauriProtocol";
 
@@ -44,7 +45,7 @@ export const getGameCover = (game: GameData): string => {
 		return buildTauriProtocolUrl("reina-cover", String(game.id), params);
 	}
 
-	return "/images/default.png";
+	return publicAssetUrl("images/default.png");
 };
 
 export function getVisibleGameCover(
@@ -52,7 +53,7 @@ export function getVisibleGameCover(
 	replaceNsfwCover: boolean,
 ): string {
 	return replaceNsfwCover && getGameNsfwStatus(game)
-		? "/images/NR18.png"
+		? publicAssetUrl("images/NR18.png")
 		: getGameCover(game);
 }
 

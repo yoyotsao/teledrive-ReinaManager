@@ -9,6 +9,8 @@
 - 初始化日志、旧文件迁移、SQLite 和 schema migration。
 - 恢复中断的安装任务，退出时关闭数据库。
 
+调试构建保留启动时自动打开开发者工具的行为。`build` 工作流通过 `--features tauri/devtools` 让 release 产物支持开发者工具，启动时不自动打开，使用 WebView 原生快捷键打开（Windows 为 F12 或 Ctrl+Shift+I，Linux 为 Ctrl+Shift+I）。`release` 工作流不启用该 feature。
+
 根模块为 `backup`、`database`、`entity`、`game`、`install`、`oauth` 和 `utils`。
 
 ## 模块组织
@@ -35,6 +37,10 @@ Tauri command
 | `database/service.rs` | 数据库类 commands 与操作上下文错误 |
 | `database/repository/` | 查询、业务不变量和事务 |
 | `entity/` | SeaORM 实体与表关联 |
+
+Linux `reina-server` 透过 `/game/api` 提供网页端 API，复用 `reina-core` 的 DTO、repository 与实体。bridge 会话写入 `game_sessions` 时保留外部 UUID、设备和精确秒数；兼容统计仍投影为分钟，并在同一 transaction 更新统计与 `data_version`。桌面监控和 server 共用 repository 中的秒转分钟规则。
+
+`reina-server` 的边界：`/game/api/rpc/{command}` 只暴露白名单 command，读操作不开 transaction，写操作在 `tx::finish` 中与 `data_version` 同一次 commit（游玩记录重送等无变化的写入不递增版本）。`/game/api/version` 返回该版本，`/game/api/sessions` 接收 bridge 的游玩记录，按使用者隔离：JWT 通过后 `AuthUser` 携带该使用者自己的连线（`UserStore`，由 `UserStores` 按 `user_id` 延迟开启并快取，见 `reina-server/src/stores.rs`），handler 没有全域数据库可用。封面存于 `<REINA_DATA_DIR>/users/<user_id>/covers/game_<id>/<sha256>.<ext>`，数据库为 `<REINA_DATA_DIR>/users/<user_id>/reina_manager.db`，`/game/healthz` 在 DB 打开和迁移完成后才可用。HGameFree 文章索引（`reina-server/src/hgamefree/`）是全站共用的 `<REINA_DATA_DIR>/hgamefree.db`，由后台任务经 `upstream` 层同步，`/game/api/hgamefree/search` 查询，细节见[部署文档](../deployment/web-docker.md)。server 不下载游戏也不启动进程，这些属于本机 bridge。统计日期使用进程本地时区（生产为 `Asia/Taipei`），见[部署文档](../deployment/web-docker.md)。
 
 游戏是聚合根：写入时在同一事务中维护 `games` 和 `game_sources`。合集与游戏统计的跨表不变量也由 repository 事务保护。`Option<Option<T>>` 在更新 DTO 中区分“不修改”和“显式清空”。
 
@@ -78,6 +84,12 @@ LE 与 Magpie 的工具路径及新游戏默认开关保存在 SQLite 用户设�
 | `backup` | 数据库、封面和游戏存档备份 |
 | `oauth` | Bangumi/Hikarinagi OAuth、localhost 回调、token 交换与刷新 |
 | `utils` | 文件、HTTP、图片协议、日志和历史文件迁移 |
+
+## 安装归档解压
+
+第三方下载包由 `install/archive.rs` 调用随应用打包的 7-Zip 命令行工具；内部存档备份使用 Rust 归档库，二者不共用解压引擎。`build.rs` 将目标架构的工具准备到 `target/7zip`，Tauri 再打包到 `tools/7zip`。
+
+Windows x86、x64、arm64 使用官方 7-Zip 26.02 的 `7z.exe` 和 `7z.dll`，并从同架构的 7-Zip-zstd 26.02 插件包中只提取 `Codecs/zstd.dll`。Linux x64、arm64 继续使用 7-Zip-zstd 的 `7zz`；Linux x86 保留官方 `7zz`，目前不在发布矩阵中。macOS 配置暂为官方 `7zz`，项目尚无完整的 macOS 支持计划。构建脚本固定下载来源和 SHA-256，缓存命中时检查可执行文件、所需库、插件及许可证；Windows 便携包复制整个 `tools/7zip` 目录。
 
 ## 游戏存档备份
 

@@ -1,29 +1,11 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useState } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { useVirtuosoGridRestore } from "@/hooks/common/useScrollRestore";
 import type { GameData } from "@/types";
-import { CardItem } from "./CardItem";
+import { GameCardItem } from "./CardItem";
+import { CARDS_GRID_CLASS, useCardsGridLayout } from "./CardsGridLayout";
+import type { GameCardItemProps } from "./types";
 import { useCardsController } from "./useCardsController";
-
-const BREAKPOINTS = [
-	{ min: 2560, cols: 10 },
-	{ min: 1920, cols: 9 },
-	{ min: 1536, cols: 8 },
-	{ min: 1280, cols: 7 },
-	{ min: 1024, cols: 6 },
-] as const;
-
-const CARD_GRID_ROW_HEIGHT_ESTIMATE = 260;
-const VIRTUAL_CARDS_GRID_CLASS =
-	"grid gap-4 pb-4 [grid-template-columns:repeat(var(--virtual-cards-grid-columns),minmax(0,1fr))]";
-
-function getColumnCount(): number {
-	const width = window.innerWidth;
-	for (const bp of BREAKPOINTS) {
-		if (width >= bp.min) return bp.cols;
-	}
-	return 3;
-}
 
 interface VirtualCardsGridProps {
 	gameIds: number[];
@@ -33,13 +15,23 @@ interface VirtualCardsGridProps {
 	enableSortFieldOverlay?: boolean;
 }
 
+interface VirtualCardsGridContentProps
+	extends Pick<
+		VirtualCardsGridProps,
+		"gameIds" | "displayById" | "scrollRestoreKey"
+	> {
+	getCardProps: GameCardItemProps["getCardProps"];
+	/** 仅在挂载时使用；切换搜索、筛选或排序后忽略旧滚动快照。 */
+	restoreScroll?: boolean;
+}
+
 /**
  * VirtualCardsGrid - 虚拟化游戏卡片网格
  *
  * 滚动恢复：
  * - 保存：scroll 事件中缓存 main.scrollTop - wrapper 相对偏移（列表内坐标），
  *         unmount 时写入通用滚动缓存（ref 值，避免 react-router 重置 DOM 的时序问题）
- * - 恢复：优先使用 VirtuosoGrid 状态快照，缺失时 fallback 到近似 item index
+ * - 恢复：优先使用 VirtuosoGrid 状态快照，缺失时恢复列表内像素位置
  */
 export const VirtualCardsGrid = memo(
 	({
@@ -54,13 +46,34 @@ export const VirtualCardsGrid = memo(
 			enableBatchMode,
 			enableSortFieldOverlay,
 		});
-		const [columns, setColumns] = useState(() => getColumnCount());
+		return (
+			<>
+				{controls}
+				<VirtualCardsGridContent
+					key={scrollRestoreKey ?? "no-scroll-restore"}
+					gameIds={gameIds}
+					displayById={displayById}
+					getCardProps={getCardProps}
+					scrollRestoreKey={scrollRestoreKey}
+				/>
+			</>
+		);
+	},
+);
 
-		useEffect(() => {
-			const onResize = () => setColumns(getColumnCount());
-			window.addEventListener("resize", onResize);
-			return () => window.removeEventListener("resize", onResize);
-		}, []);
+VirtualCardsGrid.displayName = "VirtualCardsGrid";
+
+/** 复用虚拟网格渲染，交互状态由调用方持有。 */
+export const VirtualCardsGridContent = memo(
+	({
+		gameIds,
+		displayById,
+		getCardProps,
+		scrollRestoreKey,
+		restoreScroll = true,
+	}: VirtualCardsGridContentProps) => {
+		const [shouldRestoreScroll] = useState(restoreScroll);
+		const { columns, gridRef, gridStyle } = useCardsGridLayout();
 
 		const {
 			restoreProps,
@@ -68,17 +81,16 @@ export const VirtualCardsGrid = memo(
 			stateChanged,
 			wrapperRef: virtuosoWrapperRef,
 		} = useVirtuosoGridRestore({
-			columns,
+			columns: columns ?? 1,
 			itemCount: gameIds.length,
-			rowHeight: CARD_GRID_ROW_HEIGHT_ESTIMATE,
 			scrollKey: scrollRestoreKey,
+			restoreScroll: shouldRestoreScroll,
 		});
 
 		return (
-			<>
-				{controls}
-				<div ref={virtuosoWrapperRef} className="flex-1 min-h-0">
-					{scrollParent && (
+			<div ref={gridRef} className="flex-1 min-h-0 min-w-0">
+				<div ref={virtuosoWrapperRef}>
+					{scrollParent && columns !== null && (
 						<VirtuosoGrid
 							key={scrollRestoreKey ?? "no-scroll-restore"}
 							customScrollParent={scrollParent}
@@ -88,29 +100,24 @@ export const VirtualCardsGrid = memo(
 									? `missing-game-${index}`
 									: `game-${gameId}`
 							}
-							listClassName={VIRTUAL_CARDS_GRID_CLASS}
+							listClassName={`${CARDS_GRID_CLASS} pb-4`}
 							itemClassName="min-w-0"
 							increaseViewportBy={{ top: 600, bottom: 1200 }}
 							stateChanged={stateChanged}
 							{...restoreProps}
-							style={
-								{
-									"--virtual-cards-grid-columns": columns,
-								} as React.CSSProperties
-							}
+							style={gridStyle}
 							itemContent={(_, gameId) => {
 								if (gameId === undefined) return null;
 								const game = displayById.get(gameId);
 								if (!game) return null;
-								const props = getCardProps(game);
-								return <CardItem {...props} />;
+								return <GameCardItem game={game} getCardProps={getCardProps} />;
 							}}
 						/>
 					)}
 				</div>
-			</>
+			</div>
 		);
 	},
 );
 
-VirtualCardsGrid.displayName = "VirtualCardsGrid";
+VirtualCardsGridContent.displayName = "VirtualCardsGridContent";

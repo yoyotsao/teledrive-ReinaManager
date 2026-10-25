@@ -1,4 +1,5 @@
-minimumReleaseAge: 4320
+# 本轮更新暂时解除发布时间等待；恢复时将该值改回 4320。
+minimumReleaseAge: 0
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 

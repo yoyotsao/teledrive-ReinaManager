@@ -1,25 +1,33 @@
-import { closestCenter, DndContext, DragOverlay } from "@dnd-kit/core";
+import {
+	closestCenter,
+	DndContext,
+	DragOverlay,
+	type DragStartEvent,
+} from "@dnd-kit/core";
 import {
 	rectSortingStrategy,
 	SortableContext,
 	useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
+import { useGridScrollPosition } from "@/hooks/common/useScrollRestore";
 import type { GameData } from "@/types";
-import { CardItem } from "./CardItem";
-import type { SortableCardItemProps } from "./types";
-import { useCardsController } from "./useCardsController";
-import { useDragSort } from "./useDragSort";
+import { GameCardItem } from "./CardItem";
+import { CARDS_GRID_CLASS, useCardsGridLayout } from "./CardsGridLayout";
+import type { GameCardItemProps, SortableCardItemProps } from "./types";
+import type { useDragSort } from "./useDragSort";
 
 interface SortableCardsGridProps {
-	gameIds: number[];
+	dragSort: ReturnType<typeof useDragSort>;
 	displayById: Map<number, GameData>;
-	categoryId: number;
+	getCardProps: GameCardItemProps["getCardProps"];
+	closeContextMenu: () => void;
+	scrollRestoreKey: string;
 }
 
 const SortableCardItem = memo((props: SortableCardItemProps) => {
-	const { game, disabledSortable, ...restProps } = props;
+	const { game, getCardProps, disabledSortable } = props;
 
 	const {
 		attributes,
@@ -34,21 +42,26 @@ const SortableCardItem = memo((props: SortableCardItemProps) => {
 		() => ({
 			transform: CSS.Transform.toString(transform),
 			transition,
-			opacity: isDragging ? 0 : 1,
 			zIndex: isDragging ? 1000 : ("auto" as const),
 		}),
 		[transform, transition, isDragging],
 	);
 
 	return (
-		<CardItem
+		<div
 			ref={setNodeRef}
 			style={style}
-			game={game}
-			{...restProps}
+			// 落下动画会恢复内联 opacity；用类隐藏源卡片，避免覆盖下一次拖拽的状态。
+			className={`relative min-w-0 ${isDragging ? "opacity-0" : ""}`}
 			{...(!disabledSortable ? attributes : {})}
 			{...(!disabledSortable ? listeners : {})}
-		/>
+		>
+			<GameCardItem
+				game={game}
+				getCardProps={getCardProps}
+				isDragging={isDragging}
+			/>
+		</div>
 	);
 });
 
@@ -60,7 +73,18 @@ SortableCardItem.displayName = "SortableCardItem";
  * 接收 ID 数组和展示索引，渲染时按 ID 取 GameData。
  */
 export const SortableCardsGrid = memo(
-	({ gameIds, displayById, categoryId }: SortableCardsGridProps) => {
+	({
+		dragSort,
+		displayById,
+		getCardProps,
+		closeContextMenu,
+		scrollRestoreKey,
+	}: SortableCardsGridProps) => {
+		const { wrapperRef } = useGridScrollPosition({
+			scrollKey: scrollRestoreKey,
+			trackFullGrid: true,
+		});
+		const { gridStyle } = useCardsGridLayout(wrapperRef);
 		const {
 			ids,
 			activeId,
@@ -68,41 +92,39 @@ export const SortableCardsGrid = memo(
 			handleDragStart,
 			handleDragCancel,
 			handleDragEnd,
-		} = useDragSort({
-			gameIds,
-			categoryId,
-			enabled: true,
-		});
-		const { controls, getCardProps, showBatchControls } = useCardsController({
-			gameIds: ids,
-			categoryId,
-		});
-		const isDragSortEnabled = !showBatchControls;
+			isSaving,
+		} = dragSort;
+		const isDragSortEnabled = !isSaving;
+		const handleGridDragStart = useCallback(
+			(event: DragStartEvent) => {
+				closeContextMenu();
+				handleDragStart(event);
+			},
+			[closeContextMenu, handleDragStart],
+		);
 
 		return (
 			<DndContext
 				sensors={sensors}
 				collisionDetection={closestCenter}
-				onDragStart={isDragSortEnabled ? handleDragStart : undefined}
+				onDragStart={isDragSortEnabled ? handleGridDragStart : undefined}
 				onDragCancel={handleDragCancel}
 				onDragEnd={isDragSortEnabled ? handleDragEnd : undefined}
 			>
 				<SortableContext items={ids} strategy={rectSortingStrategy}>
-					{controls}
-					<div className="flex-1 min-h-0">
+					<div ref={wrapperRef} className="flex-1 min-h-0 min-w-0">
 						<div
-							className={
-								"text-center grid lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 4xl:grid-cols-10 gap-4"
-							}
+							className={`${CARDS_GRID_CLASS} text-center`}
+							style={gridStyle}
 						>
 							{ids.map((gameId) => {
 								const game = displayById.get(gameId);
 								if (!game) return null;
-								const props = getCardProps(game);
 								return (
 									<SortableCardItem
 										key={gameId}
-										{...props}
+										game={game}
+										getCardProps={getCardProps}
 										disabledSortable={!isDragSortEnabled}
 									/>
 								);
@@ -110,12 +132,19 @@ export const SortableCardsGrid = memo(
 						</div>
 					</div>
 				</SortableContext>
-				<DragOverlay>
+				{/* 预览只负责显示，不抢占落点卡片的悬停状态。 */}
+				<DragOverlay className="pointer-events-none">
 					{activeId &&
 						(() => {
 							const activeGame = displayById.get(activeId);
 							if (!activeGame) return null;
-							return <CardItem {...getCardProps(activeGame)} isOverlay />;
+							return (
+								<GameCardItem
+									game={activeGame}
+									getCardProps={getCardProps}
+									isOverlay
+								/>
+							);
 						})()}
 				</DragOverlay>
 			</DndContext>

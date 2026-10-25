@@ -12,7 +12,7 @@ const rejectLegacyRequest = async (): Promise<never> => {
 
 export const kunAdapter: MetadataSourceAdapter<KunData> = {
 	key: "kun",
-	label: "Kungal v1",
+	label: "Kungal",
 	iconUrl: "https://www.kungal.com/favicon.ico",
 	validateId: (id) => /^\d+$/.test(id),
 	getExternalUrl: (id) => `https://www.kungal.com/galgame/${id}`,

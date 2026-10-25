@@ -16,6 +16,7 @@
  */
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { isWebRuntime } from "@/services/platform";
 import {
 	ApiRateLimitError,
 	AppError,
@@ -29,6 +30,7 @@ import {
 	markApiRequestSucceeded,
 	scheduleApiRequest,
 } from "./rateLimit";
+import { requestViaServerProxy } from "./serverProxy";
 
 const LOCAL_PROXY_BYPASS =
 	"localhost,127.0.0.0/8,::1,0.0.0.0,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,fc00::/7,fe80::/10,.local";
@@ -48,7 +50,7 @@ export type NetworkRequestContext = Pick<
 	"proxyUrl" | "signal"
 >;
 
-interface TauriHttpResponse<T = unknown> {
+export interface TauriHttpResponse<T = unknown> {
 	data: T;
 	status: number;
 	statusText: string;
@@ -108,6 +110,17 @@ async function requestTauriHttp<T>(
 	const fullUrl = buildUrlWithParams(url, options?.params);
 	const rateLimitSource =
 		options?.rateLimit?.source ?? inferRateLimitSource(url);
+
+	// 網頁版沒有 tauri-plugin-http；節流與 429 重試交給伺服器統一處理。
+	if (isWebRuntime()) {
+		return requestViaServerProxy<T>(
+			method,
+			fullUrl,
+			options,
+			data,
+			rateLimitSource,
+		);
+	}
 
 	const fetchResponse = () => {
 		const proxyUrl = options?.proxyUrl?.trim();
@@ -226,12 +239,16 @@ function inferRateLimitSource(url: string): ApiRateLimitSource | undefined {
 		if (host === "www.dlsite.com") return "dlsite";
 		if (host === "erogamescape.org") return "erogamescape";
 		if (host === "www.hikarinagi.org") return "hikarinagi";
+		if (host === "hgamefree.info") return "hgamefree";
+		if (host === "store.steampowered.com") return "steam";
 	} catch {
 		return undefined;
 	}
 }
 
-function getApiRateLimitErrorMessage(source: ApiRateLimitSource): string {
+export function getApiRateLimitErrorMessage(
+	source: ApiRateLimitSource,
+): string {
 	switch (source) {
 		case "bgm":
 			return "Bangumi 请求被限速，当前任务已停止，请 1 小时后手动重试";
@@ -245,6 +262,10 @@ function getApiRateLimitErrorMessage(source: ApiRateLimitSource): string {
 			return "ErogameScape 请求被限速，请稍后重试";
 		case "hikarinagi":
 			return "Hikarinagi 请求被限速，请稍后重试";
+		case "hgamefree":
+			return "HGameFree 请求被限速，请稍后重试";
+		case "steam":
+			return "Steam 请求被限速，请稍后重试";
 	}
 }
 

@@ -38,6 +38,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import TurnRightIcon from "@mui/icons-material/TurnRight";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -51,7 +52,6 @@ import { useColorScheme } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open as openurl } from "@tauri-apps/plugin-shell";
 import type { MouseEvent } from "react";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,16 +66,21 @@ import {
 	type ToolKind,
 	type ToolPaths,
 } from "@/components/ToolIntegrationModal";
-import { useProxyImageUrlResolver } from "@/hooks/common/useProxyImageUrlResolver";
+import { useCloudScanStore } from "@/hooks/features/games/useCloudScan";
 import { useGameById } from "@/hooks/features/games/useGameFacade";
 import { useGameStatusActions } from "@/hooks/features/games/useGameStatusActions";
 import { useDeleteGame, useUpdateGame } from "@/hooks/queries/useGames";
+import { useProxiedImageUrl } from "@/hooks/queries/useProxiedImageUrl";
 import { useAllSettings } from "@/hooks/queries/useSettings";
 import { getRuntimeSourceAdapter, REGISTERED_SOURCE_KEYS } from "@/metadata";
 import { getSourceIdFromDisplay } from "@/metadata/sourceRecord";
 import { GameDeletionContext } from "@/providers/GameDeletionProvider";
 import { snackbar } from "@/providers/snackBar";
-import { handleOpenFolder } from "@/services/fs/fileDialog";
+import {
+	isWebRuntime,
+	openExternal as openurl,
+	platformCapabilities,
+} from "@/services/platform";
 import { useStore } from "@/store/appStore";
 import type { GameData, SourceType } from "@/types";
 import type { PlayStatus } from "@/types/collection";
@@ -88,9 +93,8 @@ let lastAppliedWindowTheme: ThemeMode | null = null;
 
 const SourceLinkIcon = ({ source }: { source: SourceType }) => {
 	const [failedUrl, setFailedUrl] = useState<string>();
-	const resolveImageUrl = useProxyImageUrlResolver();
 	const adapter = getRuntimeSourceAdapter(source);
-	const imageUrl = resolveImageUrl(adapter.iconUrl);
+	const imageUrl = useProxiedImageUrl(adapter.iconUrl);
 
 	if (failedUrl === imageUrl) {
 		return <CloseIcon fontSize="small" sx={{ color: "error.main" }} />;
@@ -265,6 +269,11 @@ export const useModal = () => {
 const OpenFolder = ({ selectedGame }: { selectedGame: GameData }) => {
 	const { t } = useTranslation();
 	const isDisabled = selectedGame.localpath == null;
+	const openFolder = async () => {
+		if (isWebRuntime()) return;
+		const { handleOpenFolder } = await import("@/services/fs/fileDialog");
+		await handleOpenFolder(selectedGame);
+	};
 
 	return (
 		<Button
@@ -272,7 +281,7 @@ const OpenFolder = ({ selectedGame }: { selectedGame: GameData }) => {
 			color="primary"
 			variant="text"
 			disabled={isDisabled}
-			onClick={() => handleOpenFolder(selectedGame)}
+			onClick={() => void openFolder()}
 		>
 			{t("components.Toolbar.openGameFolder", "打开游戏目录")}
 		</Button>
@@ -297,12 +306,16 @@ export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 	/**
 	 * 删除游戏操作
 	 */
-	const handleDeleteGame = async () => {
+	const handleDeleteGame = async ({
+		deleteCloud,
+	}: {
+		deleteCloud: boolean;
+	}) => {
 		if (isDeleting || !selectedGame) return;
 		try {
 			setIsDeleting(true);
 			deletion?.setGame(selectedGame);
-			await deleteGameMutation.mutateAsync(id);
+			await deleteGameMutation.mutateAsync({ gameId: id, deleteCloud });
 			navigate(-1);
 		} catch (error) {
 			console.error("删除游戏失败:", error);
@@ -329,6 +342,7 @@ export const DeleteModal: React.FC<{ id: number }> = ({ id }) => {
 				open={openAlert}
 				setOpen={setOpenAlert}
 				onConfirm={handleDeleteGame}
+				cloudOption={isWebRuntime()}
 				isLoading={isDeleting}
 			/>
 		</>
@@ -550,6 +564,8 @@ export const Buttongroup = ({
 }: ButtonGroupProps) => {
 	const { t } = useTranslation();
 	const openAddModal = useStore((state) => state.openAddModal);
+	// 网页版：背景扫描后待确认的数量，提示用户打开「添加游戏」挑选候选
+	const scanPendingCount = useCloudScanStore((state) => state.pending.length);
 	const detailFallback = <ThemeSwitcher />;
 
 	return (
@@ -562,8 +578,12 @@ export const Buttongroup = ({
 				>
 					{(selectedGame) => (
 						<>
-							<LaunchModal />
-							<OpenFolder selectedGame={selectedGame} />
+							{(platformCapabilities.nativeLaunch || isWebRuntime()) && (
+								<LaunchModal />
+							)}
+							{platformCapabilities.nativePaths && (
+								<OpenFolder selectedGame={selectedGame} />
+							)}
 							<DeleteModal id={selectedGame.id} />
 							<MoreButton selectedGame={selectedGame} />
 							<ThemeSwitcher />
@@ -573,10 +593,14 @@ export const Buttongroup = ({
 			)}
 			{isLibraries && (
 				<>
-					<LaunchModal />
-					<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
-						{t("components.AddModal.addGame", "添加游戏")}
-					</Button>
+					{(platformCapabilities.nativeLaunch || isWebRuntime()) && (
+						<LaunchModal />
+					)}
+					<Badge color="warning" badgeContent={scanPendingCount} max={99}>
+						<Button onClick={() => openAddModal("")} startIcon={<AddIcon />}>
+							{t("components.AddModal.addGame", "添加游戏")}
+						</Button>
+					</Badge>
 					<FilterSortModal />
 					<ThemeSwitcher />
 				</>

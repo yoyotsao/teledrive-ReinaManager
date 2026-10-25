@@ -12,6 +12,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { serverKey } from "@/hooks/queries/serverKeys";
 import { fetchCurrentUserProfile } from "@/metadata/api/bgm";
 import { fetchHikarinagiCurrentUserProfile } from "@/metadata/api/hikarinagi";
 import { fetchVndbCurrentUserProfile } from "@/metadata/api/vndb";
@@ -27,7 +28,7 @@ import { saveDataKeys } from "./useSavedata";
 // ============================================================================
 
 export const settingsKeys = {
-	all: ["settings"] as const,
+	all: serverKey("settings"),
 	allSettings: () => [...settingsKeys.all, "allSettings"] as const,
 	bgmCurrentUserProfile: () =>
 		[...settingsKeys.all, "bgmCurrentUserProfile"] as const,

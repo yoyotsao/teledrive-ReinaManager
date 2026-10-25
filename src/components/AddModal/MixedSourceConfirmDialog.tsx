@@ -10,7 +10,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SmartImage } from "@/components/SmartImage";
+import { ProxiedImage } from "@/components/ProxiedImage";
 import { getRuntimeSourceAdapter, MIXED_SOURCE_KEYS } from "@/metadata";
 import type {
 	MixedSourceCandidates,
@@ -169,7 +169,7 @@ const MixedSourceConfirmDialog: React.FC<MixedSourceConfirmDialogProps> = ({
 										{displayInfo ? (
 											<div className="flex min-w-0 items-start gap-3">
 												{displayInfo.image ? (
-													<SmartImage
+													<ProxiedImage
 														src={displayInfo.image}
 														alt={displayInfo.name}
 														className={`${coverClassName} flex-shrink-0 rounded object-cover`}

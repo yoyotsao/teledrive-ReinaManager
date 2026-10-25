@@ -23,6 +23,7 @@ interface DlsiteSearchItem {
 }
 
 interface RawDlsiteProductInfo {
+	work_type?: string;
 	work_name?: string;
 	product_name?: string;
 	name?: string;
@@ -394,6 +395,7 @@ function transformDetailDocument(
 	}
 
 	const data: DlsiteData = {
+		work_type: normalizeText(info?.work_type) || undefined,
 		image:
 			(doc ? extractImageFromElement(doc) : undefined) ||
 			normalizeSourceUrl(info?.work_image ?? null),
@@ -474,4 +476,25 @@ export async function fetchDlsiteById(
 	}
 
 	return transformDetailDocument(normalizedId, info, doc);
+}
+
+/**
+ * 雲端掃描專用：只查資訊 API 取得作品類型。
+ * 查無作品回 undefined；網路、限流、5xx 等錯誤一律往外拋。
+ */
+export async function fetchDlsiteWorkType(
+	id: string,
+	context: NetworkRequestContext = {},
+): Promise<string | undefined> {
+	const normalizedId = normalizeDlsiteId(id);
+	if (!normalizedId) {
+		throw new AppError({
+			code: "invalid_game_id",
+			message: `Invalid DLsite id: ${id}`,
+		});
+	}
+
+	const info = await fetchProductInfo(normalizedId, context);
+	if (!info) return undefined;
+	return normalizeText(info.work_type) || "UNKNOWN";
 }

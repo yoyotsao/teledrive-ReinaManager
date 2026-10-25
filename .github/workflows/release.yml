@@ -177,11 +177,11 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_tag }}
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v6.1.0
         with:
           run_install: false
       - name: Install Rust
@@ -255,11 +255,11 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_tag }}
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v6.1.0
         with:
           run_install: false
       - name: Install Rust
@@ -355,12 +355,22 @@ jobs:
           if (-not (Test-Path $bundledSevenZip)) {
             throw "Tauri 构建资源中缺少 7-Zip: $bundledSevenZip"
           }
+          foreach ($relativePath in @("7z.exe", "7z.dll", "Codecs/zstd.dll", "Codecs/LICENSE")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $bundledSevenZip $relativePath) -PathType Leaf)) {
+              throw "Tauri 构建资源中缺少 7-Zip 文件: $relativePath"
+            }
+          }
 
           New-Item -ItemType Directory -Path $portableSevenZip -Force | Out-Null
           Get-ChildItem -LiteralPath $bundledSevenZip -Force |
             Copy-Item -Destination $portableSevenZip -Recurse -Force
           if (-not (Test-Path $portableSevenZip)) {
             throw "便携版资源中缺少 7-Zip: $portableSevenZip"
+          }
+          foreach ($relativePath in @("7z.exe", "7z.dll", "Codecs/zstd.dll", "Codecs/LICENSE")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $portableSevenZip $relativePath) -PathType Leaf)) {
+              throw "便携版资源中缺少 7-Zip 文件: $relativePath"
+            }
           }
           New-Item -ItemType Directory -Path $resourcesDataDir -Force | Out-Null
           @"

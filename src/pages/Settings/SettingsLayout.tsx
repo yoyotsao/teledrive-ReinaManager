@@ -4,6 +4,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 
+export const SETTINGS_SELECT_CLASS_NAME = "w-60 max-w-full";
+
 type SettingsGroupProps = {
 	title: ReactNode;
 	description?: ReactNode;
@@ -62,7 +64,9 @@ export const SettingsItem = ({
 				</Typography>
 			)}
 		</Box>
-		<Box className={stacked ? "min-w-0" : "shrink-0"}>{children}</Box>
+		<Box className={stacked ? "min-w-0" : "min-w-0 max-w-full shrink-0"}>
+			{children}
+		</Box>
 	</Stack>
 );
 

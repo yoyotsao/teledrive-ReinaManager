@@ -27,20 +27,23 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useShallow } from "zustand/react/shallow";
 import {
 	type GameListScopeOptions,
+	getActiveGameFilterCount,
 	useFilteredGamesFacade,
+	useGameListPreferences,
 } from "@/hooks/features/games/useGameListFacade";
 import { snackbar } from "@/providers/snackBar";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke/types";
-import { type GameFilterSortConfig, useStore } from "@/store/appStore";
+import {
+	type CollectionGameFilterSortConfig,
+	useStore,
+} from "@/store/appStore";
 import {
 	ALL_PLAY_STATUSES,
 	type CollectionEntitySortField,
 	getPlayStatusLabel,
 	type PlayStatus,
-	type PlayStatusFilter,
 } from "@/types/collection";
 import {
 	buildNormalizedTagMap,
@@ -103,6 +106,7 @@ interface SortSectionProps<T extends string> {
 	onSortValueChange: (value: T) => void;
 	onSortOrderChange: (order: SortOrder) => void;
 	footer?: React.ReactNode;
+	showDirection?: boolean;
 }
 
 function getCollectionEntitySortFieldLabel(
@@ -174,6 +178,7 @@ function SortSection<T extends string>({
 	onSortValueChange,
 	onSortOrderChange,
 	footer,
+	showDirection = true,
 }: SortSectionProps<T>) {
 	const { t } = useTranslation();
 	const sortMethodLabel = t(
@@ -206,55 +211,40 @@ function SortSection<T extends string>({
 						))}
 					</Select>
 				</FormControl>
-				<ToggleButtonGroup
-					exclusive
-					fullWidth
-					size="small"
-					value={sortOrder}
-					aria-label={t("components.FilterSortModal.sortOrder", "排序方向")}
-					onChange={(_, value: SortOrder | null) => {
-						if (value) onSortOrderChange(value);
-					}}
-				>
-					<ToggleButton value="asc" className="gap-1">
-						<ArrowUpwardIcon fontSize="small" />
-						{t("components.FilterSortModal.ascending", "升序")}
-					</ToggleButton>
-					<ToggleButton value="desc" className="gap-1">
-						<ArrowDownwardIcon fontSize="small" />
-						{t("components.FilterSortModal.descending", "降序")}
-					</ToggleButton>
-				</ToggleButtonGroup>
+				{showDirection && (
+					<ToggleButtonGroup
+						exclusive
+						fullWidth
+						size="small"
+						value={sortOrder}
+						aria-label={t("components.FilterSortModal.sortOrder", "排序方向")}
+						onChange={(_, value: SortOrder | null) => {
+							if (value) onSortOrderChange(value);
+						}}
+					>
+						<ToggleButton value="asc" className="gap-1">
+							<ArrowUpwardIcon fontSize="small" />
+							{t("components.FilterSortModal.ascending", "升序")}
+						</ToggleButton>
+						<ToggleButton value="desc" className="gap-1">
+							<ArrowDownwardIcon fontSize="small" />
+							{t("components.FilterSortModal.descending", "降序")}
+						</ToggleButton>
+					</ToggleButtonGroup>
+				)}
 				{footer}
 			</div>
 		</Box>
 	);
 }
 
-function getActiveFilterCount(
-	gameFilterType: GameType,
-	playStatusFilter: PlayStatusFilter,
-	tagFilters: string[],
-): number {
-	let count = 0;
-	if (gameFilterType !== "all") count += 1;
-	if (
-		Array.isArray(playStatusFilter)
-			? playStatusFilter.length > 0 &&
-				playStatusFilter.length < ALL_PLAY_STATUSES.length
-			: playStatusFilter !== "all"
-	) {
-		count += 1;
-	}
-	if (tagFilters.length > 0) count += 1;
-	return count;
-}
-
 function GameFilterSortModal({
 	scopeGameIds,
 	applyNsfwFilter,
+	preferencesScope,
 }: GameFilterSortModalProps) {
 	const { t } = useTranslation();
+	const isCollection = preferencesScope === "collection";
 	const {
 		gameFilterType,
 		playStatusFilter,
@@ -262,25 +252,24 @@ function GameFilterSortModal({
 		sortOption,
 		sortOrder,
 		showCardSortFieldOverlay,
-		applyGameFilterSort,
-	} = useStore(
-		useShallow((s) => ({
-			gameFilterType: s.gameFilterType,
-			playStatusFilter: s.playStatusFilter,
-			tagFilters: s.tagFilters,
-			sortOption: s.sortOption,
-			sortOrder: s.sortOrder,
-			showCardSortFieldOverlay: s.showCardSortFieldOverlay,
-			applyGameFilterSort: s.applyGameFilterSort,
-		})),
+	} = useGameListPreferences(preferencesScope);
+	const applyLibraryFilterSort = useStore((s) => s.applyGameFilterSort);
+	const applyCollectionFilterSort = useStore(
+		(s) => s.applyCollectionGameFilterSort,
 	);
+	const applyGameFilterSort = (config: CollectionGameFilterSortConfig) => {
+		if (isCollection) applyCollectionFilterSort(config);
+		else if (config.sortOption !== "manual")
+			applyLibraryFilterSort({ ...config, sortOption: config.sortOption });
+	};
 	const { baseFilteredGames } = useFilteredGamesFacade({
 		scopeGameIds,
 		applyNsfwFilter,
+		preferencesScope,
 	});
 
 	const [open, setOpen] = useState(false);
-	const [draft, setDraft] = useState<GameFilterSortConfig>(() => ({
+	const [draft, setDraft] = useState<CollectionGameFilterSortConfig>(() => ({
 		gameFilterType,
 		playStatusFilter,
 		tagFilters,
@@ -293,11 +282,11 @@ function GameFilterSortModal({
 		? draft.playStatusFilter
 		: null;
 	const isMultiStatus = selectedStatuses !== null;
-	const activeFilterCount = getActiveFilterCount(
+	const activeFilterCount = getActiveGameFilterCount({
 		gameFilterType,
 		playStatusFilter,
 		tagFilters,
-	);
+	});
 
 	const knownTags = useMemo(() => {
 		if (!open) {
@@ -657,11 +646,22 @@ function GameFilterSortModal({
 				</Box>
 
 				<SortSection
-					options={gameSortOptions.map((option) => ({
-						value: option.value,
-						label: t(`components.FilterSortModal.${option.labelKey}`),
-					}))}
+					options={[
+						...(isCollection
+							? [
+									{
+										value: "manual" as const,
+										label: t("pages.Collection.gameSort.manual", "手动排序"),
+									},
+								]
+							: []),
+						...gameSortOptions.map((option) => ({
+							value: option.value,
+							label: t(`components.FilterSortModal.${option.labelKey}`),
+						})),
+					]}
 					sortValue={draft.sortOption}
+					showDirection={draft.sortOption !== "manual"}
 					sortOrder={draft.sortOrder}
 					onSortValueChange={(option) =>
 						setDraft((current) => ({ ...current, sortOption: option }))
@@ -670,26 +670,39 @@ function GameFilterSortModal({
 						setDraft((current) => ({ ...current, sortOrder: order }))
 					}
 					footer={
-						<FormControlLabel
-							control={
-								<Switch
-									size="small"
-									checked={draft.showCardSortFieldOverlay}
-									onChange={(event) =>
-										setDraft((current) => ({
-											...current,
-											showCardSortFieldOverlay: event.target.checked,
-										}))
-									}
-								/>
-							}
-							label={t(
-								"components.FilterSortModal.showCardSortFieldOverlay",
-								"封面展示排序字段",
-							)}
-							labelPlacement="start"
-							className="ml-0 justify-between"
-						/>
+						draft.sortOption === "manual" ? (
+							<Typography
+								variant="caption"
+								color="text.secondary"
+								className="max-w-100"
+							>
+								{t(
+									"pages.Collection.gameSort.manualHint",
+									"按已保存的手动顺序显示；清除搜索和筛选后可拖拽调整。",
+								)}
+							</Typography>
+						) : (
+							<FormControlLabel
+								control={
+									<Switch
+										size="small"
+										checked={draft.showCardSortFieldOverlay}
+										onChange={(event) =>
+											setDraft((current) => ({
+												...current,
+												showCardSortFieldOverlay: event.target.checked,
+											}))
+										}
+									/>
+								}
+								label={t(
+									"components.FilterSortModal.showCardSortFieldOverlay",
+									"封面展示排序字段",
+								)}
+								labelPlacement="start"
+								className="ml-0 justify-between"
+							/>
+						)
 					}
 				/>
 			</FilterSortDialog>

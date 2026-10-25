@@ -134,8 +134,8 @@ export const Home: React.FC = () => {
 		[visibleGames, lastPlayedMap],
 	);
 	const activities = useMemo(
-		() => buildActivities(visibleGames, sessions, nsfwCoverReplace),
-		[visibleGames, sessions, nsfwCoverReplace],
+		() => buildActivities(visibleGames, sessions),
+		[visibleGames, sessions],
 	);
 	const filteredActivities = useMemo(
 		() =>

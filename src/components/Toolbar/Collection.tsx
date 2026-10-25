@@ -25,6 +25,7 @@ import { setScrollPosition } from "@/hooks/common/useScrollRestore";
 import { useGameIndex } from "@/hooks/features/games/useGameListFacade";
 import {
 	useCategories,
+	useCategoryGameIds,
 	useCreateCategory,
 	useCreateGroup,
 	useDeleteGroup,
@@ -56,6 +57,17 @@ function DeveloperGameActions({ categoryKey }: { categoryKey: string }) {
 				applyNsfwFilter={false}
 			/>
 		</>
+	);
+}
+
+function CollectionGameActions({ categoryId }: { categoryId: number }) {
+	const { data: gameIds = [] } = useCategoryGameIds(categoryId);
+	return (
+		<FilterSortModal
+			scopeGameIds={gameIds}
+			applyNsfwFilter={false}
+			preferencesScope="collection"
+		/>
 	);
 }
 
@@ -289,6 +301,7 @@ export const CollectionToolbar: React.FC = () => {
 		return (
 			<>
 				<LaunchModal />
+				<CollectionGameActions categoryId={selectedRealCategoryId} />
 				<Button
 					startIcon={<EditIcon />}
 					onClick={() => setManageGamesDialogOpen(true)}

@@ -1,6 +1,6 @@
 pub use sea_orm_migration::prelude::*;
 
-mod backup;
+pub mod backup;
 mod m20250927_000001_baseline_migration;
 mod m20250928_000002_split_games_table;
 mod m20250930_000003_add_collections;
@@ -22,6 +22,8 @@ mod m20260805_000018_hikarinagi_oauth;
 mod m20260809_000019_add_steam_launch;
 mod m20260922_000020_savedata_backup_root_semantics;
 mod m20260923_000021_tool_integration_defaults;
+mod m20260926_000020_web_library;
+mod m20260926_000021_bridge_sessions;
 
 pub struct Migrator;
 
@@ -50,6 +52,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_000019_add_steam_launch::Migration),
             Box::new(m20260922_000020_savedata_backup_root_semantics::Migration),
             Box::new(m20260923_000021_tool_integration_defaults::Migration),
+            Box::new(m20260926_000020_web_library::Migration),
+            Box::new(m20260926_000021_bridge_sessions::Migration),
         ]
     }
 }

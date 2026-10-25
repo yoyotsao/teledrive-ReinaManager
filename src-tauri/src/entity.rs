@@ -1,18 +1,3 @@
-//! 数据实体模块
-//!
-//! 包含所有 SeaORM 实体定义和 JSON 数据结构。
+//! 数据实体模块：实际定义位于共用 crate `reina_core::entity`，此处重新导出以保持既有路径。
 
-pub mod prelude;
-
-pub mod custom_data;
-
-// === SeaORM 实体（对应数据库表）===
-pub mod collections;
-pub mod game_collection_link;
-pub mod game_sessions;
-pub mod game_sources;
-pub mod game_statistics;
-pub mod games;
-pub mod savedata;
-pub mod tasks;
-pub mod user;
+pub use reina_core::entity::*;

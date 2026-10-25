@@ -1,5 +1,4 @@
 import { listen } from "@tauri-apps/api/event";
-import { open as openurl } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAllSettings, useUpdateSettings } from "@/hooks/queries/useSettings";
@@ -8,6 +7,10 @@ import { snackbar } from "@/providers/snackBar";
 import { settingsService } from "@/services/invoke";
 import { logoutBgmAuth } from "@/services/oauth/bgmAuthSession";
 import type { OAuthCallbackPayload } from "@/services/oauth/oauthAuthSession";
+import {
+	openExternal as openurl,
+	platformCapabilities,
+} from "@/services/platform";
 import { getNetworkRequestContext } from "@/services/requestContext";
 import { toError } from "@/utils/errors";
 
@@ -123,6 +126,8 @@ export function useBgmAuthController() {
 	};
 
 	const handleOAuthLogin = useCallback(async () => {
+		// 网页版没有 deep link 回呼，不支持 OAuth 快捷登录；按钮在网页版也不会显示
+		if (!platformCapabilities.desktopShell) return;
 		if (isBgmOAuthRunning) {
 			snackbar.info(
 				t(

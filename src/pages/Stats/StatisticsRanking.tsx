@@ -13,8 +13,9 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Virtuoso } from "react-virtuoso";
+import { GameCoverImg } from "@/components/GameCover";
 import { formatPlayTime } from "@/utils/dateTime";
-import { getGameDisplayName, getVisibleGameCover } from "@/utils/game";
+import { getGameDisplayName } from "@/utils/game";
 import type { StatisticsRankingItem } from "./statsData";
 
 interface RankingListProps {
@@ -55,8 +56,9 @@ function RankingRow({
 			>
 				#{index + 1}
 			</Typography>
-			<img
-				src={getVisibleGameCover(item.game, replaceNsfwCover)}
+			<GameCoverImg
+				game={item.game}
+				replaceNsfwCover={replaceNsfwCover}
 				alt=""
 				loading="lazy"
 				className="h-14 w-10 shrink-0 rounded object-cover bg-[var(--mui-palette-action-hover)]"

@@ -16,10 +16,16 @@ import {
 	patchGameCaches,
 	removeGamesFromCaches,
 } from "@/hooks/queries/gameCachePatch";
+import { serverKey } from "@/hooks/queries/serverKeys";
+import { resolveDisplaySourceImage } from "@/metadata/data/sourceImage";
 import type { GameType, SortOption, SortOrder } from "@/services/invoke";
-import { gameService } from "@/services/invoke";
+import { fileService, gameService } from "@/services/invoke";
+import { isWebRuntime } from "@/services/platform";
+import { setSourceCover } from "@/services/web/covers";
+import { trashCloudGames } from "@/services/web/scan";
 import type {
 	BatchOperationResult,
+	FullGameData,
 	InsertGameParams,
 	UpdateGameParams,
 } from "@/types";
@@ -57,7 +63,7 @@ function invalidateSourceIdCaches(queryClient: QueryClient) {
 }
 
 export const gameKeys = {
-	all: ["games"] as const,
+	all: serverKey("games"),
 	index: () => [...gameKeys.all, "index"] as const,
 	idLists: () => [...gameKeys.all, "idList"] as const,
 	idList: (params: {
@@ -88,12 +94,14 @@ function useGameIdList(
 	gameType: GameType,
 	sortOption: SortOption,
 	sortOrder: SortOrder,
+	enabled = true,
 ) {
 	const { i18n } = useTranslation();
 	const language = i18n.language;
 
 	return useQuery({
 		queryKey: gameKeys.idList({ gameType, sortOption, sortOrder, language }),
+		enabled,
 		queryFn: () =>
 			gameService.getGameIds(gameType, sortOption, sortOrder, language),
 		placeholderData: keepPreviousData,
@@ -118,8 +126,29 @@ function useAddGame() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (gameParams: InsertGameParams) =>
-			gameService.insertGame(gameParams),
+		mutationFn: async (gameParams: InsertGameParams) => {
+			const insertedGame = await gameService.insertGame(gameParams);
+			if (!isWebRuntime()) {
+				return insertedGame;
+			}
+
+			const image = resolveDisplaySourceImage(gameParams);
+			if (!image) {
+				return insertedGame;
+			}
+
+			try {
+				const cover = await setSourceCover(insertedGame.id, image);
+				return {
+					...insertedGame,
+					cover_version: cover.cover_version,
+					has_custom_cover: cover.has_custom_cover,
+				};
+			} catch (error) {
+				console.warn("新增游戏后下载来源封面失败:", error);
+				return insertedGame;
+			}
+		},
 		onSuccess: async (insertedGame) => {
 			const patched = appendGamesToCaches(queryClient, gameKeys, [
 				insertedGame,
@@ -132,7 +161,9 @@ function useAddGame() {
 			}
 			await queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
 			invalidateSourceIdCaches(queryClient);
-			await queryClient.invalidateQueries({ queryKey: ["collections"] });
+			await queryClient.invalidateQueries({
+				queryKey: serverKey("collections"),
+			});
 		},
 	});
 }
@@ -160,7 +191,7 @@ function useBatchAddGames() {
 			}
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
 			invalidateSourceIdCaches(queryClient);
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
 		},
 	});
 }
@@ -169,13 +200,22 @@ function useDeleteGame() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (gameId: number) => gameService.deleteGame(gameId),
-		onSuccess: (_, gameId) => {
+		mutationFn: async ({
+			gameId,
+			deleteCloud = false,
+		}: {
+			gameId: number;
+			deleteCloud?: boolean;
+		}) => {
+			if (deleteCloud) await trashCloudGames([gameId]);
+			return gameService.deleteGame(gameId);
+		},
+		onSuccess: (_, { gameId }) => {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, [gameId]);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
-			queryClient.invalidateQueries({ queryKey: ["stats"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
+			queryClient.invalidateQueries({ queryKey: serverKey("stats") });
 		},
 	});
 }
@@ -184,13 +224,22 @@ function useDeleteGames() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (gameIds: number[]) => gameService.deleteGames(gameIds),
-		onSuccess: (_, gameIds) => {
+		mutationFn: async ({
+			gameIds,
+			deleteCloud = false,
+		}: {
+			gameIds: number[];
+			deleteCloud?: boolean;
+		}) => {
+			if (deleteCloud) await trashCloudGames(gameIds);
+			return gameService.deleteGames(gameIds);
+		},
+		onSuccess: (_, { gameIds }) => {
 			// 乐观更新：立即从缓存中移除已删除的游戏
 			removeGamesFromCaches(queryClient, gameKeys, gameIds);
 			queryClient.invalidateQueries({ queryKey: gameKeys.idLists() });
-			queryClient.invalidateQueries({ queryKey: ["collections"] });
-			queryClient.invalidateQueries({ queryKey: ["stats"] });
+			queryClient.invalidateQueries({ queryKey: serverKey("collections") });
+			queryClient.invalidateQueries({ queryKey: serverKey("stats") });
 		},
 	});
 }
@@ -219,6 +268,74 @@ function useUpdateGame() {
 	});
 }
 
+function useUpdateGameWithSourceCover() {
+	const queryClient = useQueryClient();
+	const updateGameMutation = useUpdateGame();
+
+	return {
+		mutateAsync: async ({
+			gameId,
+			updates,
+		}: {
+			gameId: number;
+			updates: UpdateGameParams;
+		}) => {
+			if (!isWebRuntime()) {
+				await fileService.deleteCloudCoverCache(gameId);
+				return updateGameMutation.mutateAsync({ gameId, updates });
+			}
+
+			// 必須以後端實際寫入後的完整資料決定封面，不能使用本次 metadata 草稿：
+			// mixed 的 cover_source 與本次抓取失敗但仍保留在 DB 的來源都只存在於這份結果。
+			const updatedGame = await updateGameMutation.mutateAsync({
+				gameId,
+				updates,
+			});
+			const cover = await setSourceCover(
+				gameId,
+				resolveDisplaySourceImage(updatedGame) ?? null,
+			);
+			const latestGame =
+				queryClient
+					.getQueryData<FullGameData[]>(gameKeys.all)
+					?.find((game) => game.id === gameId) ?? updatedGame;
+			const updatedWithCover = {
+				...latestGame,
+				cover_version: cover.cover_version,
+				has_custom_cover: cover.has_custom_cover,
+			};
+			patchGameCaches(queryClient, gameKeys, updatedWithCover);
+			return updatedWithCover;
+		},
+	};
+}
+
+/**
+ * 網頁版純封面變更（covers API）後，直接把新的 cover_version / has_custom_cover
+ * 合併進遊戲快取與索引，不必等輪詢或 focus 才換圖。
+ */
+function usePatchGameCover() {
+	const queryClient = useQueryClient();
+
+	return (
+		gameId: number,
+		cover: { cover_version: string | null; has_custom_cover: boolean },
+	) => {
+		const current = queryClient
+			.getQueryData<FullGameData[]>(gameKeys.all)
+			?.find((game) => game.id === gameId);
+		if (!current) {
+			queryClient.invalidateQueries({ queryKey: gameKeys.all, exact: true });
+			return;
+		}
+		patchGameCaches(queryClient, gameKeys, {
+			...current,
+			cover_version: cover.cover_version,
+			has_custom_cover: cover.has_custom_cover,
+		});
+	};
+}
+
 export {
 	useAddGame,
 	useAllBgmIds,
@@ -228,5 +345,7 @@ export {
 	useDeleteGame,
 	useDeleteGames,
 	useGameIdList,
+	usePatchGameCover,
 	useUpdateGame,
+	useUpdateGameWithSourceCover,
 };

@@ -31,8 +31,9 @@ export const RightMenuHost = memo(
 					open: (cardId, mouseX, mouseY) => {
 						setMenuPosition({ cardId, mouseX, mouseY });
 					},
+					close: closeMenu,
 				}),
-				[],
+				[closeMenu],
 			);
 
 			return menuPosition ? (

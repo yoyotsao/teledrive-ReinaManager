@@ -191,21 +191,27 @@ export function useScrollRestore(
 interface UseVirtuosoGridRestoreOptions {
 	columns: number;
 	itemCount: number;
-	rowHeight: number;
 	scrollKey: string | null | undefined;
+	restoreScroll?: boolean;
 }
 
-export function useVirtuosoGridRestore({
-	columns,
-	itemCount,
-	rowHeight,
+/** 两种网格共用列表内滚动坐标，全量网格离开时更新已有快照的位置。 */
+export function useGridScrollPosition({
 	scrollKey,
-}: UseVirtuosoGridRestoreOptions) {
+	restoreScroll = true,
+	trackFullGrid = false,
+}: Pick<UseVirtuosoGridRestoreOptions, "scrollKey" | "restoreScroll"> & {
+	trackFullGrid?: boolean;
+}) {
 	const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const initialScrollTop = useMemo(
-		() => (scrollKey ? getScrollPosition(scrollKey) : 0),
-		[scrollKey],
+		() =>
+			restoreScroll && scrollKey && scrollParent
+				? getScrollPosition(scrollKey)
+				: 0,
+		// 新网格读取位置时，旧网格的卸载保存已经完成。
+		[scrollKey, restoreScroll, scrollParent],
 	);
 	const lastScrollTopRef = useRef(initialScrollTop);
 
@@ -225,41 +231,61 @@ export function useVirtuosoGridRestore({
 		const wrapper = wrapperRef.current;
 		if (!wrapper) return;
 
-		const wrapperOffsetTop =
-			wrapper.getBoundingClientRect().top -
-			scrollParent.getBoundingClientRect().top +
-			scrollParent.scrollTop;
-
 		const onScroll = () => {
+			// 批量工具栏和样式加载可能改变列表起点，不能沿用挂载时的偏移。
 			lastScrollTopRef.current = Math.max(
 				0,
-				scrollParent.scrollTop - wrapperOffsetTop,
+				scrollParent.getBoundingClientRect().top -
+					wrapper.getBoundingClientRect().top,
 			);
 		};
 
 		scrollParent.addEventListener("scroll", onScroll, { passive: true });
+		if (trackFullGrid) onScroll();
 
 		return () => {
 			scrollParent.removeEventListener("scroll", onScroll);
+			if (trackFullGrid) {
+				for (const key of Object.keys(virtuosoGridStates)) {
+					const state = virtuosoGridStates[key];
+					if (key.startsWith(`${scrollKey}:`) && state) {
+						virtuosoGridStates[key] = {
+							...state,
+							scrollTop: lastScrollTopRef.current,
+						};
+					}
+				}
+			}
 			setScrollPosition(scrollKey, lastScrollTopRef.current);
 		};
-	}, [scrollKey, scrollParent]);
+	}, [scrollKey, scrollParent, trackFullGrid]);
+	return { scrollParent, wrapperRef, initialScrollTop };
+}
+
+export function useVirtuosoGridRestore({
+	columns,
+	itemCount,
+	scrollKey,
+	restoreScroll = true,
+}: UseVirtuosoGridRestoreOptions) {
+	const { scrollParent, wrapperRef, initialScrollTop } = useGridScrollPosition({
+		scrollKey,
+		restoreScroll,
+	});
 	const stateKey = scrollKey ? `${scrollKey}:${columns}:${itemCount}` : null;
-	const state = stateKey ? virtuosoGridStates[stateKey] : undefined;
-	const initialTopMostItemIndex =
-		itemCount > 0 && initialScrollTop > 0
-			? Math.min(
-					itemCount - 1,
-					Math.max(0, Math.floor(initialScrollTop / rowHeight) * columns),
-				)
-			: null;
-	const restoreProps = state
-		? { restoreStateFrom: state }
-		: initialTopMostItemIndex !== null
-			? {
-					initialTopMostItemIndex,
-				}
-			: {};
+	const restoreProps = useMemo(() => {
+		// 当前挂载写出的新快照不能覆盖初始恢复参数，否则测量时可能回到顶部。
+		const state =
+			restoreScroll && stateKey ? virtuosoGridStates[stateKey] : undefined;
+		return state
+			? { restoreStateFrom: state }
+			: itemCount > 0 && initialScrollTop > 0
+				? {
+						// 由网格测量实际尺寸后恢复像素位置，避免估算行高引起跳动。
+						initialTopMostItemIndex: { index: 0, offset: initialScrollTop },
+					}
+				: {};
+	}, [restoreScroll, stateKey, itemCount, initialScrollTop]);
 
 	const handleStateChanged = useCallback(
 		(nextState: GridStateSnapshot) => {

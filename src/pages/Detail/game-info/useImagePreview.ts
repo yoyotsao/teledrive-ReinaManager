@@ -1,52 +1,42 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
+import { useObjectUrl } from "@/hooks/common/useObjectUrl";
 
 /**
- * 图片预览 Hook
- *
- * 使用 Tauri 的 convertFileSrc 实现零内存开销的图片预览
- *
- * 主要功能：
- * 1. 管理选中的图片路径
- * 2. 同步转换为 asset URL（无需异步读取）
- * 3. 无需竞态条件处理（同步操作）
- * 4. 无需清理资源（无 blob URL）
- *
- * @returns 图片预览状态和操作方法
+ * 图片预览 Hook。
+ * 桌面版仍用 convertFileSrc；网页版 File 透过共用 useObjectUrl 管理生命周期。
  */
 export const useImagePreview = () => {
-	// 选中的图片文件路径
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
-	// 预览用的 asset URL（通过 convertFileSrc 转换）
-	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+	const [selectedFile, setSelectedFile] = useState<File | null>(null);
+	const [pathPreviewUrl, setPathPreviewUrl] = useState<string | null>(null);
+	const filePreviewUrl = useObjectUrl(selectedFile);
+	const previewUrl = selectedFile ? (filePreviewUrl ?? null) : pathPreviewUrl;
 
-	/**
-	 * 清理预览状态
-	 */
 	const cleanup = useCallback(() => {
-		setPreviewUrl(null);
+		setPathPreviewUrl(null);
 		setSelectedPath(null);
+		setSelectedFile(null);
 	}, []);
 
-	/**
-	 * 选择图片并生成预览
-	 *
-	 * @param path 图片文件路径
-	 */
 	const selectImage = useCallback((path: string) => {
+		setSelectedFile(null);
 		setSelectedPath(path);
-		// 直接转换路径为 asset URL，同步操作，无需 await
-		setPreviewUrl(convertFileSrc(path));
+		setPathPreviewUrl(convertFileSrc(path));
+	}, []);
+
+	const selectFile = useCallback((file: File) => {
+		setSelectedPath(null);
+		setPathPreviewUrl(null);
+		setSelectedFile(file);
 	}, []);
 
 	return {
-		/** 当前选中的图片路径 */
 		selectedPath,
-		/** 预览 URL（通过 convertFileSrc 转换） */
+		selectedFile,
 		previewUrl,
-		/** 选择图片并生成预览 */
 		selectImage,
-		/** 清理预览状态 */
+		selectFile,
 		cleanup,
 	};
 };

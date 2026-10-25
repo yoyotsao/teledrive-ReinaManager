@@ -98,7 +98,7 @@ pub async fn delete_game(
     cover_state: State<'_, DownloadState>,
     id: i32,
 ) -> Result<u64, String> {
-    let rows_affected = GamesRepository::delete(&db, id)
+    let rows_affected = GamesRepository::delete(db.inner(), id)
         .await
         .map(|result| result.rows_affected)
         .map_err(|e| format!("删除游戏失败: {}", e))?;
@@ -128,7 +128,7 @@ pub async fn delete_games_batch(
     cover_state: State<'_, DownloadState>,
     ids: Vec<i32>,
 ) -> Result<u64, String> {
-    let rows_affected = GamesRepository::delete_many(&db, ids.clone())
+    let rows_affected = GamesRepository::delete_many(db.inner(), ids.clone())
         .await
         .map(|result| result.rows_affected)
         .map_err(|e| format!("批量删除游戏失败: {}", e))?;
@@ -343,7 +343,7 @@ pub async fn update_settings(
 ) -> Result<(), String> {
     let data = data.cleaned(); // 清洗空字符串
 
-    SettingsRepository::update_settings(&db, data)
+    SettingsRepository::update_settings(db.inner(), data)
         .await
         .map_err(|e| format!("更新设置失败: {}", e))
 }
@@ -378,7 +378,7 @@ pub async fn create_collection(
     }
     .cleaned(); // 清洗空字符串
 
-    CollectionsRepository::create(&db, data)
+    CollectionsRepository::create(db.inner(), data)
         .await
         .map_err(|e| format!("创建合集失败: {}", e))
 }
@@ -424,7 +424,7 @@ pub async fn update_collection(
     }
     .cleaned(); // 清洗空字符串
 
-    CollectionsRepository::update(&db, id, data)
+    CollectionsRepository::update(db.inner(), id, data)
         .await
         .map_err(|e| format!("更新合集失败: {}", e))
 }
@@ -432,7 +432,7 @@ pub async fn update_collection(
 /// 删除合集
 #[tauri::command]
 pub async fn delete_collection(db: State<'_, DatabaseConnection>, id: i32) -> Result<u64, String> {
-    CollectionsRepository::delete(&db, id)
+    CollectionsRepository::delete(db.inner(), id)
         .await
         .map(|result| result.rows_affected)
         .map_err(|e| format!("删除合集失败: {}", e))
@@ -445,7 +445,7 @@ pub async fn remove_games_from_collection(
     game_ids: Vec<i32>,
     collection_id: i32,
 ) -> Result<u64, String> {
-    CollectionsRepository::remove_games_from_collection(&db, game_ids, collection_id)
+    CollectionsRepository::remove_games_from_collection(db.inner(), game_ids, collection_id)
         .await
         .map(|result| result.rows_affected)
         .map_err(|e| format!("从合集中批量移除游戏失败: {}", e))
@@ -507,6 +507,18 @@ pub async fn update_category_games(
     CollectionsRepository::update_category_games(&db, game_ids, collection_id)
         .await
         .map_err(|e| format!("批量更新分类游戏失败: {}", e))
+}
+
+/// 仅调整分类内的游戏顺序，不增删成员。
+#[tauri::command]
+pub async fn reorder_category_games(
+    db: State<'_, DatabaseConnection>,
+    ordered_game_ids: Vec<i32>,
+    collection_id: i32,
+) -> Result<(), String> {
+    CollectionsRepository::reorder_category_games(&db, ordered_game_ids, collection_id)
+        .await
+        .map_err(|e| format!("调整分类游戏顺序失败: {}", e))
 }
 
 /// 获取分组中的游戏总数

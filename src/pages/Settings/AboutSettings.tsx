@@ -7,10 +7,13 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import pkg from "@pkg";
-import { open as openurl } from "@tauri-apps/plugin-shell";
 import type React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	openExternal as openurl,
+	platformCapabilities,
+} from "@/services/platform";
 import { checkForUpdates } from "@/services/plugins/updateService";
 import { useStore } from "@/store/appStore";
 import { getUserErrorMessage } from "@/utils/errors";
@@ -82,23 +85,25 @@ export const AboutSection: React.FC = () => {
 					<strong>{t("pages.Settings.about.version", "版本")}: </strong>v
 					{pkg.version}
 				</Typography>
-				<Button
-					variant="outlined"
-					startIcon={
-						isCheckingUpdate ? (
-							<CircularProgress size={16} color="inherit" />
-						) : (
-							<UpdateIcon />
-						)
-					}
-					onClick={handleCheckUpdate}
-					disabled={isCheckingUpdate}
-					size="small"
-				>
-					{isCheckingUpdate
-						? t("pages.Settings.about.checking", "检查中...")
-						: t("pages.Settings.about.checkUpdate", "检查更新")}
-				</Button>
+				{platformCapabilities.desktopShell && (
+					<Button
+						variant="outlined"
+						startIcon={
+							isCheckingUpdate ? (
+								<CircularProgress size={16} color="inherit" />
+							) : (
+								<UpdateIcon />
+							)
+						}
+						onClick={handleCheckUpdate}
+						disabled={isCheckingUpdate}
+						size="small"
+					>
+						{isCheckingUpdate
+							? t("pages.Settings.about.checking", "检查中...")
+							: t("pages.Settings.about.checkUpdate", "检查更新")}
+					</Button>
+				)}
 			</Stack>
 			{/* 更新状态显示 */}
 			{updateStatus && (

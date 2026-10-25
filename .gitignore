@@ -1,9 +1,14 @@
 # Folder to ignore
 node_modules
 dist
+dist-web
 target
 docs-local
 others
+
+# 项目内前端测试环境，复用一份浏览器数据与缓存
+/.local/frontend-tests/
+/.local/cloud-scan-review/
 
 # Editor directories
 .vscode
@@ -13,3 +18,8 @@ others
 
 *.local
 .env
+
+# Playwright
+test-results
+playwright-report
+blob-report

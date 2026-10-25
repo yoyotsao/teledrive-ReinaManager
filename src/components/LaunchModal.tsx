@@ -13,13 +13,20 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import SyncIcon from "@mui/icons-material/Sync";
 import TimerIcon from "@mui/icons-material/Timer";
-import { Button, Typography } from "@mui/material";
+import {
+	Button,
+	Checkbox,
+	FormControlLabel,
+	LinearProgress,
+	Typography,
+} from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { SelectedGameGuard } from "@/components/SelectedGameGuard";
 import { useGameLaunchFlow } from "@/hooks/features/games/useGameLaunchFlow";
 import { snackbar } from "@/providers/snackBar";
+import { isWebRuntime } from "@/services/platform";
 import { useGamePlayStore } from "@/store/gamePlayStore";
 import type { GameData } from "@/types";
 import { getUserErrorMessage } from "@/utils/errors";
@@ -52,13 +59,15 @@ const formatPlayTime = (minutes: number, seconds: number): string => {
  *
  * @returns {JSX.Element} 启动按钮或运行中提示
  */
-export const LaunchModal = () => {
+export const LaunchModal = ({ game }: { game?: GameData } = {}) => {
 	const { t } = useTranslation();
 	const disabledFallback = (
 		<Button startIcon={<PlayArrowIcon />} disabled>
 			{t("components.LaunchModal.launchGame", "启动游戏")}
 		</Button>
 	);
+
+	if (game) return <LaunchModalContent selectedGame={game} />;
 
 	return (
 		<SelectedGameGuard
@@ -78,7 +87,22 @@ interface LaunchModalContentProps {
 function LaunchModalContent({ selectedGame }: LaunchModalContentProps) {
 	const { t } = useTranslation();
 	const selectedGameId = selectedGame.id;
-	const { launchGame, syncLocalPath } = useGameLaunchFlow();
+	const {
+		launchGame,
+		syncLocalPath,
+		bridgeState,
+		bridgeError,
+		bridgeIsError,
+		bridgeUnavailable,
+		bridgeLoading,
+		exeChoices,
+		selectBridgeExe,
+		loadBridgeExes,
+		localeEmulator,
+		setLocaleEmulator,
+		forceExeSelection,
+		isBridgeBusy,
+	} = useGameLaunchFlow(selectedGame);
 	const { stopGame, isThisGameRunning, realTimeState } = useGamePlayStore(
 		useShallow((s) => ({
 			stopGame: s.stopGame,
@@ -126,6 +150,219 @@ function LaunchModalContent({ selectedGame }: LaunchModalContentProps) {
 	const handleStartGame = () => {
 		void launchGame(selectedGame);
 	};
+
+	if (isWebRuntime()) {
+		const teledrivePath = selectedGame.teledrive_path;
+		const button = (label: string, onClick?: () => void, disabled = false) => (
+			<Button
+				startIcon={<PlayArrowIcon />}
+				onClick={onClick}
+				disabled={disabled || !onClick}
+				className="rounded-2xl"
+			>
+				{label}
+			</Button>
+		);
+		if (!teledrivePath) {
+			return (
+				<div className="flex flex-col items-start gap-1">
+					{button(
+						t(
+							"components.LaunchModal.bridgePathMissing",
+							"未配置 TeleDrive 游戏路径",
+						),
+					)}
+					<Typography variant="caption" color="text.secondary">
+						{t(
+							"components.LaunchModal.bridgeActionsUnaffected",
+							"游戏资料编辑、扫描和封面功能仍可使用",
+						)}
+					</Typography>
+				</div>
+			);
+		}
+		if (bridgeLoading) {
+			return button(
+				t("components.LaunchModal.bridgeChecking", "正在连接本机 bridge…"),
+			);
+		}
+		if (bridgeIsError || bridgeUnavailable || !bridgeState) {
+			const message = bridgeUnavailable
+				? t(
+						"components.LaunchModal.bridgeUnavailable",
+						"本机 bridge 不可用，请启动服务并检查浏览器权限",
+					)
+				: bridgeError &&
+						(bridgeError as { code?: string }).code ===
+							"bridge_permission_denied"
+					? t(
+							"components.LaunchModal.bridgePermissionDenied",
+							"本机 bridge 拒绝访问",
+						)
+					: t(
+							"components.LaunchModal.bridgeStatusUnavailable",
+							"无法读取本机 bridge 状态",
+						);
+			return (
+				<div className="flex flex-col items-start gap-1">
+					{button(message)}
+					<Typography variant="caption" color="text.secondary">
+						{t(
+							"components.LaunchModal.bridgeActionsUnaffected",
+							"游戏资料编辑、扫描和封面功能仍可使用",
+						)}
+					</Typography>
+				</div>
+			);
+		}
+
+		const state = bridgeState;
+		const selectedExe = selectedGame.exe_relpath;
+		const canUseLocaleEmulator = state.capabilities?.locale_emulator === true;
+		const progress =
+			state.total_bytes > 0
+				? Math.min(100, (state.completed_bytes / state.total_bytes) * 100)
+				: 0;
+		const formatBytes = (bytes: number) => {
+			if (bytes < 1024) return `${bytes} B`;
+			const units = ["KB", "MB", "GB", "TB"];
+			let size = bytes / 1024;
+			let unit = 0;
+			while (size >= 1024 && unit < units.length - 1) {
+				size /= 1024;
+				unit += 1;
+			}
+			return `${size.toFixed(1)} ${units[unit]}`;
+		};
+		const formatElapsed = (seconds: number) =>
+			formatPlayTime(Math.floor(seconds / 60), seconds % 60);
+
+		if (state.status === "running") {
+			return (
+				<Button startIcon={<TimerIcon />} disabled className="rounded-2xl">
+					{t("components.LaunchModal.bridgeRunning", "运行中")}{" "}
+					{formatElapsed(state.elapsed_seconds)}
+				</Button>
+			);
+		}
+		if (state.status === "downloading") {
+			return (
+				<div className="flex min-w-52 flex-col gap-1">
+					<Typography variant="caption">
+						{t("components.LaunchModal.bridgeDownloading", "正在下载")}{" "}
+						{formatBytes(state.completed_bytes)} /{" "}
+						{formatBytes(state.total_bytes)}
+					</Typography>
+					<LinearProgress variant="determinate" value={progress} />
+					<Button
+						onClick={handleStartGame}
+						disabled={isBridgeBusy}
+						color="error"
+					>
+						{t("components.LaunchModal.bridgeCancelDownload", "取消下载")}
+					</Button>
+				</div>
+			);
+		}
+		if (state.status === "absent" || state.status === "incomplete") {
+			return (
+				<div className="flex flex-col items-start gap-1">
+					{state.status === "incomplete" && state.error && (
+						<Typography variant="caption" color="error">
+							{state.error}
+						</Typography>
+					)}
+					<Button
+						startIcon={<SyncIcon />}
+						onClick={handleStartGame}
+						disabled={isBridgeBusy}
+					>
+						{state.status === "incomplete"
+							? t("components.LaunchModal.bridgeResumeDownload", "继续下载")
+							: t("components.LaunchModal.bridgeDownload", "下载到本机")}
+					</Button>
+				</div>
+			);
+		}
+
+		if (forceExeSelection || !selectedExe) {
+			return (
+				<div className="flex flex-col items-start gap-1">
+					{exeChoices ? (
+						<select
+							className="max-w-80 rounded border border-[--mui-palette-divider] bg-[--mui-palette-background-paper] p-2"
+							aria-label={t(
+								"components.LaunchModal.bridgeSelectExe",
+								"选择可执行文件",
+							)}
+							defaultValue=""
+							onChange={(event) => {
+								if (event.target.value) {
+									void selectBridgeExe(selectedGame, event.target.value);
+								}
+							}}
+						>
+							<option value="" disabled>
+								{t("components.LaunchModal.bridgeSelectExe", "选择可执行文件")}
+							</option>
+							{exeChoices.map((exe) => (
+								<option key={exe} value={exe}>
+									{exe}
+								</option>
+							))}
+						</select>
+					) : (
+						<Button
+							startIcon={<SyncIcon />}
+							onClick={() => void loadBridgeExes(teledrivePath)}
+							disabled={isBridgeBusy}
+						>
+							{t("components.LaunchModal.bridgeChooseExe", "选择可执行文件")}
+						</Button>
+					)}
+					{canUseLocaleEmulator && (
+						<FormControlLabel
+							control={
+								<Checkbox
+									checked={localeEmulator}
+									onChange={(event) => setLocaleEmulator(event.target.checked)}
+								/>
+							}
+							label={t(
+								"components.LaunchModal.bridgeLocaleEmulator",
+								"使用 Locale Emulator",
+							)}
+						/>
+					)}
+				</div>
+			);
+		}
+		return (
+			<div className="flex flex-col items-start gap-1">
+				<Button
+					startIcon={<PlayArrowIcon />}
+					onClick={handleStartGame}
+					disabled={isBridgeBusy}
+				>
+					{t("components.LaunchModal.launchGame", "启动游戏")}
+				</Button>
+				{canUseLocaleEmulator && (
+					<FormControlLabel
+						control={
+							<Checkbox
+								checked={localeEmulator}
+								onChange={(event) => setLocaleEmulator(event.target.checked)}
+							/>
+						}
+						label={t(
+							"components.LaunchModal.bridgeLocaleEmulator",
+							"使用 Locale Emulator",
+						)}
+					/>
+				)}
+			</div>
+		);
+	}
 
 	const handleSyncLocalPath = () => {
 		void syncLocalPath(selectedGame);

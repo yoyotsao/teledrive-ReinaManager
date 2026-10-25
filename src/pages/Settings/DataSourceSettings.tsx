@@ -30,7 +30,11 @@ import { snackbar } from "@/providers/snackBar";
 import { isBgmAuthExpiredError } from "@/services/oauth/bgmAuthSession";
 import { useStore } from "@/store/appStore";
 import { getUserErrorMessage } from "@/utils/errors";
-import { SettingsGroup, SettingsItem } from "./SettingsLayout";
+import {
+	SETTINGS_SELECT_CLASS_NAME,
+	SettingsGroup,
+	SettingsItem,
+} from "./SettingsLayout";
 
 export const MixedSearchSourceSettings = () => {
 	const { t } = useTranslation();
@@ -133,7 +137,7 @@ const SpoilerLevelSettings = () => {
 			<Select
 				value={spoilerLevel}
 				onChange={(event) => setSpoilerLevel(event.target.value as number)}
-				className="min-w-40"
+				className={SETTINGS_SELECT_CLASS_NAME}
 				size="small"
 			>
 				<MenuItem value={0}>

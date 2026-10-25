@@ -14,7 +14,7 @@ import { getSafeLocale } from "@/utils/locale";
 import { CardsBatchBar } from "./CardsBatchBar";
 import { getCardSortFieldOverlay } from "./cardSortFieldOverlay";
 import { RightMenuHost } from "./RightMenuHost";
-import type { RightMenuHostHandle, SortableCardItemProps } from "./types";
+import type { CardItemProps, RightMenuHostHandle } from "./types";
 
 interface UseCardsControllerOptions {
 	gameIds: number[];
@@ -48,8 +48,12 @@ export function useCardsController({
 		useShallow((s) => ({
 			setSelectedGameId: s.setSelectedGameId,
 			cardClickMode: s.cardClickMode,
-			sortOption: s.sortOption,
-			showCardSortFieldOverlay: s.showCardSortFieldOverlay,
+			sortOption: isCollectionCategory
+				? s.collectionGameFilterSort.sortOption
+				: s.sortOption,
+			showCardSortFieldOverlay: isCollectionCategory
+				? s.collectionGameFilterSort.showCardSortFieldOverlay
+				: s.showCardSortFieldOverlay,
 		})),
 	);
 	const { launchGame } = useGameLaunchFlow();
@@ -69,7 +73,7 @@ export function useCardsController({
 		[selectedBatchGameIds],
 	);
 	const showBatchControls = canUseBatchMode && batchMode;
-	const removeGamesFromCategoryMutation = useRemoveGamesFromCategory();
+	const { mutateAsync: removeGamesFromCategory } = useRemoveGamesFromCategory();
 
 	const toggleBatchGame = useCallback((gameId: number) => {
 		setSelectedBatchGameIds((prev) =>
@@ -88,7 +92,7 @@ export function useCardsController({
 
 			if (cardClickMode === "navigate") {
 				setSelectedGameId(cardId);
-				saveScrollPosition(window.location.pathname);
+				saveScrollPosition(path);
 				navigate(`/libraries/${cardId}`);
 			} else {
 				setSelectedGameId(cardId);
@@ -97,6 +101,7 @@ export function useCardsController({
 		[
 			cardClickMode,
 			navigate,
+			path,
 			setSelectedGameId,
 			showBatchControls,
 			toggleBatchGame,
@@ -126,12 +131,16 @@ export function useCardsController({
 		[setSelectedGameId, showBatchControls],
 	);
 
+	const closeContextMenu = useCallback(() => {
+		rightMenuRef.current?.close();
+	}, []);
+
 	const handleRemoveFromCategory = useCallback(
 		async (targetGameIds: number[]) => {
 			if (!isCollectionCategory || !categoryId) return;
 
 			const targetGameIdSet = new Set(targetGameIds);
-			await removeGamesFromCategoryMutation.mutateAsync({
+			await removeGamesFromCategory({
 				categoryId,
 				gameIds: targetGameIds,
 			});
@@ -140,7 +149,7 @@ export function useCardsController({
 				prev.filter((selectedId) => !targetGameIdSet.has(selectedId)),
 			);
 		},
-		[categoryId, isCollectionCategory, removeGamesFromCategoryMutation],
+		[categoryId, isCollectionCategory, removeGamesFromCategory],
 	);
 
 	const handleRemoveSingleFromCategory = useCallback(
@@ -165,20 +174,21 @@ export function useCardsController({
 	);
 
 	const getCardProps = useCallback(
-		(game: GameData): SortableCardItemProps => {
+		(game: GameData): CardItemProps => {
 			const gameId = game.id;
 			return {
 				game,
 				displayName: getGameDisplayName(game),
-				sortFieldOverlay: shouldShowCardSortFieldOverlay
-					? getCardSortFieldOverlay({
-							game,
-							sortOption,
-							lastPlayed: lastPlayedQuery.data?.get(gameId),
-							language: locale,
-							t,
-						})
-					: undefined,
+				sortFieldOverlay:
+					shouldShowCardSortFieldOverlay && sortOption !== "manual"
+						? getCardSortFieldOverlay({
+								game,
+								sortOption,
+								lastPlayed: lastPlayedQuery.data?.get(gameId),
+								language: locale,
+								t,
+							})
+						: undefined,
 				batch: showBatchControls
 					? { selected: selectedBatchGameIdSet.has(gameId) }
 					: undefined,
@@ -236,6 +246,7 @@ export function useCardsController({
 	return {
 		controls,
 		getCardProps,
+		closeContextMenu,
 		showBatchControls,
 	};
 }

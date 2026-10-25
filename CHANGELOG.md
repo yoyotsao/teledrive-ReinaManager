@@ -1,3 +1,79 @@
+## [0.31.0](https://github.com/huoshen80/ReinaManager/compare/v0.30.0...v0.31.0) (2026-10-01)
+
+<details>
+<summary>查看中文版本</summary>
+
+### ⚙️ 杂类任务
+
+- *(build)* 精简 Windows 7-Zip 并搭配 Zstd 插件 ([254c2af](https://github.com/huoshen80/ReinaManager/commit/254c2af069eaf2c7b0fcca34eeaa0db843768cb0))
+- 校验内置的 7-Zip 插件文件 ([28854a2](https://github.com/huoshen80/ReinaManager/commit/28854a2e24163aca8f526f1c7804fab4e7a70966))
+- 在构建流程中支持 pnpm 12 ([98e509d](https://github.com/huoshen80/ReinaManager/commit/98e509d709189adb897e09a36d3b3ecbd75f91e7))
+- *(build)* 在构建产物中启用开发者工具 ([2760e3f](https://github.com/huoshen80/ReinaManager/commit/2760e3fe6972cf0f018dd17cf30eb75401153cd5))
+- *(skills)* 规范前端测试资源清理 ([53011c2](https://github.com/huoshen80/ReinaManager/commit/53011c2432eae2ecaee8fe6bd2bb8d39cc96b514))
+
+### ✨ 新功能
+
+- *(settings)* 为新游戏启用工具默认设置 ([d40724f](https://github.com/huoshen80/ReinaManager/commit/d40724f0ea844b9641dbf4573badb70fea14c099))
+- *(filters)* 支持多选游玩状态 ([2573a3e](https://github.com/huoshen80/ReinaManager/commit/2573a3e59284ce0b38136de87c62ecb6ad53a66d))
+- *(zoom)* 改善串流时的可读性 ([012d02a](https://github.com/huoshen80/ReinaManager/commit/012d02adf1df04972151cb2e674013d706e3d03f))
+- *(collections)* 独立更新游戏顺序 ([11b491f](https://github.com/huoshen80/ReinaManager/commit/11b491fdd655e290f5688524bcb1c32ebcabfc2d))
+- *(collections)* 添加搜索、筛选和排序 ([a084798](https://github.com/huoshen80/ReinaManager/commit/a08479827efbd81437a324e06876cf51d8d844b8))
+
+### 🐛 Bug 修复
+
+- *(updater)* 加强应用退出流程防护 ([1d493e8](https://github.com/huoshen80/ReinaManager/commit/1d493e8b1e96ef5d97d101f067d9cf2d3f5a2dc4))
+- *(sync)* 在认证无效时保留偏好设置 ([779f978](https://github.com/huoshen80/ReinaManager/commit/779f978d8ab7a222476fdc55577a69caba2d4f63))
+- *(settings)* 改进工具控件和路径检查的稳定性 ([ee985cd](https://github.com/huoshen80/ReinaManager/commit/ee985cdfb27366108a3f22e1ddd5c45dc0eaf005))
+- *(metadata)* 弃用 kun 数据源 ([7f0f604](https://github.com/huoshen80/ReinaManager/commit/7f0f60404d37c25046be3cbc24c1e45131cdd3ac))
+- *(install)* 遵循混合来源偏好设置 ([51591d2](https://github.com/huoshen80/ReinaManager/commit/51591d26a47122713e608af9462b15767911a5e3))
+- *(settings)* 统一下拉框宽度 ([511e911](https://github.com/huoshen80/ReinaManager/commit/511e9116146257cf834da0fce758dffee4518ebb))
+- *(cards)* 避免拖拽后顺序回退 ([b23c160](https://github.com/huoshen80/ReinaManager/commit/b23c160b8e373fb6d45feffada8f944cd94868c3))
+- *(cards)* 优化拖拽反馈并关闭菜单 ([2e6f0d6](https://github.com/huoshen80/ReinaManager/commit/2e6f0d6a3e18fef6cbd810c5438b5bb13c73b4ee))
+- *(metadata)* 恢复 kungal 显示名称 ([6bbe71f](https://github.com/huoshen80/ReinaManager/commit/6bbe71f7bb88ddc67aaf274862248b2f5dd6f22c))
+- *(cards)* 保持网格在缩放时的可读性 ([62832b0](https://github.com/huoshen80/ReinaManager/commit/62832b0efd6ef44a6fb4c50f89c3b02f29e34081))
+
+### 🚀 性能优化
+
+- *(cards)* 避免调整顺序时重新渲染内容 ([fc2a9df](https://github.com/huoshen80/ReinaManager/commit/fc2a9df0b8c059c5a2301d81b0fbf959d7f67a2c))
+- *(collections)* 为不可排序的游戏网格启用虚拟化 ([ef2984e](https://github.com/huoshen80/ReinaManager/commit/ef2984e7ffe74a3be0e737dfd9feb717b5e2a0d5))
+
+</details>
+
+### ⚙️ Miscellaneous Tasks
+
+- *(build)* Slim Windows 7-Zip with a Zstd plugin ([254c2af](https://github.com/huoshen80/ReinaManager/commit/254c2af069eaf2c7b0fcca34eeaa0db843768cb0))
+- Verify bundled 7-Zip plugin files ([28854a2](https://github.com/huoshen80/ReinaManager/commit/28854a2e24163aca8f526f1c7804fab4e7a70966))
+- Support pnpm 12 in build workflows ([98e509d](https://github.com/huoshen80/ReinaManager/commit/98e509d709189adb897e09a36d3b3ecbd75f91e7))
+- *(build)* Enable devtools in build artifacts ([2760e3f](https://github.com/huoshen80/ReinaManager/commit/2760e3fe6972cf0f018dd17cf30eb75401153cd5))
+- *(skills)* Standardize frontend test cleanup ([53011c2](https://github.com/huoshen80/ReinaManager/commit/53011c2432eae2ecaee8fe6bd2bb8d39cc96b514))
+
+### ✨ Features
+
+- *(settings)* Enable tool defaults for new games ([d40724f](https://github.com/huoshen80/ReinaManager/commit/d40724f0ea844b9641dbf4573badb70fea14c099))
+- *(filters)* Add multi-select play statuses ([2573a3e](https://github.com/huoshen80/ReinaManager/commit/2573a3e59284ce0b38136de87c62ecb6ad53a66d))
+- *(zoom)* Improve streaming readability ([012d02a](https://github.com/huoshen80/ReinaManager/commit/012d02adf1df04972151cb2e674013d706e3d03f))
+- *(collections)* Separate game order updates ([11b491f](https://github.com/huoshen80/ReinaManager/commit/11b491fdd655e290f5688524bcb1c32ebcabfc2d))
+- *(collections)* Add search, filters and sorting ([a084798](https://github.com/huoshen80/ReinaManager/commit/a08479827efbd81437a324e06876cf51d8d844b8))
+
+### 🐛 Bug Fixes
+
+- *(updater)* Guard app termination flows ([1d493e8](https://github.com/huoshen80/ReinaManager/commit/1d493e8b1e96ef5d97d101f067d9cf2d3f5a2dc4))
+- *(sync)* Preserve preferences without valid auth ([779f978](https://github.com/huoshen80/ReinaManager/commit/779f978d8ab7a222476fdc55577a69caba2d4f63))
+- *(settings)* Stabilize tool controls and path checks ([ee985cd](https://github.com/huoshen80/ReinaManager/commit/ee985cdfb27366108a3f22e1ddd5c45dc0eaf005))
+- *(metadata)* Deprecate kun source ([7f0f604](https://github.com/huoshen80/ReinaManager/commit/7f0f60404d37c25046be3cbc24c1e45131cdd3ac))
+- *(install)* Respect mixed source preferences ([51591d2](https://github.com/huoshen80/ReinaManager/commit/51591d26a47122713e608af9462b15767911a5e3))
+- *(settings)* Align dropdown widths ([511e911](https://github.com/huoshen80/ReinaManager/commit/511e9116146257cf834da0fce758dffee4518ebb))
+- *(cards)* Prevent order snapback after dragging ([b23c160](https://github.com/huoshen80/ReinaManager/commit/b23c160b8e373fb6d45feffada8f944cd94868c3))
+- *(cards)* Smooth drag feedback and dismiss menus ([2e6f0d6](https://github.com/huoshen80/ReinaManager/commit/2e6f0d6a3e18fef6cbd810c5438b5bb13c73b4ee))
+- *(metadata)* Restore kungal display name ([6bbe71f](https://github.com/huoshen80/ReinaManager/commit/6bbe71f7bb88ddc67aaf274862248b2f5dd6f22c))
+- *(cards)* Keep grids readable when zooming ([62832b0](https://github.com/huoshen80/ReinaManager/commit/62832b0efd6ef44a6fb4c50f89c3b02f29e34081))
+
+### 🚀 Performance
+
+- *(cards)* Avoid content rerenders when reordering ([fc2a9df](https://github.com/huoshen80/ReinaManager/commit/fc2a9df0b8c059c5a2301d81b0fbf959d7f67a2c))
+- *(collections)* Virtualize non-sortable game grids ([ef2984e](https://github.com/huoshen80/ReinaManager/commit/ef2984e7ffe74a3be0e737dfd9feb717b5e2a0d5))
+
+
 ## [0.30.0](https://github.com/huoshen80/ReinaManager/compare/v0.29.2...v0.30.0) (2026-09-22)
 
 <details>
